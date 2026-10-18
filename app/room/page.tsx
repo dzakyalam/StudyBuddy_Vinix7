@@ -20,13 +20,6 @@ import {
 } from "@/app/lib/room-store";
 import "./room.css";
 
-interface MockJoinRequest {
-  id: string;
-  nama: string;
-  inisial: string;
-  warnaAvatar: string;
-}
-
 function RoomContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,15 +32,6 @@ function RoomContent() {
   const [sudahGabung, setSudahGabung] = useState(false);
   const [bukaChat, setBukaChat] = useState(false);
   const [bukaDialogKeluar, setBukaDialogKeluar] = useState(false);
-
-  // Satu data mock permintaan bergabung untuk sidebar desktop
-  const [permintaanBergabung, setPermintaanBergabung] =
-    useState<MockJoinRequest | null>({
-      id: "req-1",
-      nama: "Rian Pratama",
-      inisial: "RP",
-      warnaAvatar: "#6366F1",
-    });
 
   // Sumber data peserta untuk room ini dari room-store
   const [daftarPeserta, setDaftarPeserta] = useState<Member[]>(() => {
@@ -172,16 +156,6 @@ function RoomContent() {
       cleanupPresence();
     };
   }, [room, sudahGabung, media.isMicOn, media.isCamOn, media.isSpeaking]);
-
-  function handleIzinkanPermintaan(req: MockJoinRequest) {
-    media.showToast(`${req.nama} diizinkan bergabung`);
-    setPermintaanBergabung(null);
-  }
-
-  function handleTolakPermintaan(req: MockJoinRequest) {
-    media.showToast(`Permintaan ${req.nama} ditolak`);
-    setPermintaanBergabung(null);
-  }
 
   // Jika room tidak ditemukan, tampilkan pesan error + tombol kembali
   if (!room) {
@@ -557,164 +531,11 @@ function RoomContent() {
         </div>
 
         {/* Sidebar Kanan Desktop (±340px) */}
+        {/* Sidebar Kanan di Layar Desktop (Panel Obrolan Room) */}
         <aside
           aria-label="Panel Samping Room"
           className="room-desktop-sidebar"
         >
-          {/* Kartu Permintaan Bergabung (Satu data mock) */}
-          {permintaanBergabung ? (
-            <div
-              style={{
-                backgroundColor: "#ffffff",
-                borderRadius: "20px",
-                border: "1.5px solid #e7edf5",
-                padding: "16px",
-                boxShadow: "0 2px 10px rgba(38, 53, 75, 0.04)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    color: "#26354b",
-                  }}
-                >
-                  Permintaan Bergabung
-                </span>
-                <span
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    color: "#3688f5",
-                    backgroundColor: "#edf5ff",
-                    padding: "2px 8px",
-                    borderRadius: "9999px",
-                  }}
-                >
-                  1 baru
-                </span>
-              </div>
-
-              {/* Data Pengguna Mock */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                }}
-              >
-                <div
-                  aria-hidden="true"
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "10px",
-                    backgroundColor: permintaanBergabung.warnaAvatar,
-                    color: "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "14px",
-                    fontWeight: 800,
-                    boxShadow: "0 2px 6px rgba(0, 0, 0, 0.1)",
-                    userSelect: "none",
-                  }}
-                >
-                  {permintaanBergabung.inisial}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "#26354b",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {permintaanBergabung.nama}
-                  </p>
-                  <span style={{ fontSize: "11px", color: "#64748b" }}>
-                    Ingin bergabung ke room
-                  </span>
-                </div>
-              </div>
-
-              {/* Tombol Izinkan (Biru) & Tolak (Merah) */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "8px",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => handleIzinkanPermintaan(permintaanBergabung)}
-                  style={{
-                    minHeight: "44px",
-                    borderRadius: "9999px",
-                    backgroundColor: "#3688f5",
-                    color: "#ffffff",
-                    border: "none",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    boxShadow: "0 2px 8px rgba(54, 136, 245, 0.25)",
-                    transition: "opacity 0.15s ease",
-                  }}
-                >
-                  Izinkan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleTolakPermintaan(permintaanBergabung)}
-                  style={{
-                    minHeight: "44px",
-                    borderRadius: "9999px",
-                    backgroundColor: "#fff1f2",
-                    color: "#ef4444",
-                    border: "1px solid #fecdd3",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    transition: "opacity 0.15s ease",
-                  }}
-                >
-                  Tolak
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div
-              style={{
-                backgroundColor: "#f8fafc",
-                borderRadius: "16px",
-                border: "1px dashed #cbd5e1",
-                padding: "12px",
-                textAlign: "center",
-                color: "#64748b",
-                fontSize: "12px",
-                fontWeight: 600,
-              }}
-            >
-              Tidak ada permintaan bergabung baru
-            </div>
-          )}
-
           {/* Panel Chat yang Selalu Tampil di Desktop */}
           <ChatPanel
             isOpen={true}
@@ -722,6 +543,7 @@ function RoomContent() {
             embedded={true}
           />
         </aside>
+
       </main>
 
       {/* Panel Kontrol di Mobile & Tablet (Menempel di Bagian Bawah) */}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { penggunaAktif, type Room } from "@/app/lib/mock-data";
+import { useCategories, saveCategory } from "@/app/lib/room-store";
 
 export interface CreateRoomSheetProps {
   isOpen: boolean;
@@ -14,7 +15,12 @@ export default function CreateRoomSheet({
   onClose,
   onCreateRoom,
 }: CreateRoomSheetProps) {
+  const categories = useCategories();
   const [namaRoom, setNamaRoom] = useState("");
+  const [kategoriTerpilih, setKategoriTerpilih] = useState("");
+  const [isTambahKategoriBaru, setIsTambahKategoriBaru] = useState(false);
+  const [kategoriBaruInput, setKategoriBaruInput] = useState("");
+  const [kategoriError, setKategoriError] = useState("");
   const [password, setPassword] = useState("");
   const [tanpaPassword, setTanpaPassword] = useState(false);
   const [kapasitas, setKapasitas] = useState(10);
@@ -22,6 +28,10 @@ export default function CreateRoomSheet({
 
   const handleClose = useCallback(() => {
     setNamaRoom("");
+    setKategoriTerpilih("");
+    setIsTambahKategoriBaru(false);
+    setKategoriBaruInput("");
+    setKategoriError("");
     setPassword("");
     setTanpaPassword(false);
     setKapasitas(10);
@@ -55,12 +65,26 @@ export default function CreateRoomSheet({
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setKategoriError("");
 
     // Validasi nama room
     const namaBersih = namaRoom.trim();
     if (!namaBersih) {
       setError("Nama room wajib diisi.");
       return;
+    }
+
+    // Validasi dan penentuan kategori room
+    let kategoriFinal = "";
+    if (isTambahKategoriBaru) {
+      const resKategori = saveCategory(kategoriBaruInput);
+      if (!resKategori.success) {
+        setKategoriError(resKategori.error || "Nama kategori tidak valid.");
+        return;
+      }
+      kategoriFinal = resKategori.category;
+    } else {
+      kategoriFinal = kategoriTerpilih || categories[0] || "Umum";
     }
 
     // Validasi password jika tidak memilih 'Tanpa Password'
@@ -81,12 +105,12 @@ export default function CreateRoomSheet({
     // Buat kode 4 digit acak
     const kodeAcak = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // Buat objek room baru
+    // Buat objek room baru dengan kategori yang dipilih/dibuat
     const newRoom: Room = {
       id: `room-${Date.now()}`,
       kode: kodeAcak,
       nama: namaBersih,
-      kategori: "Umum",
+      kategori: kategoriFinal,
       peserta: 1, // Host langsung terdaftar sebagai peserta pertama
       kapasitas: Math.min(50, Math.max(1, kapasitas)),
       password: passwordFinal,
@@ -175,7 +199,137 @@ export default function CreateRoomSheet({
             />
           </div>
 
-          {/* 2. Password & Pilihan "Tanpa Password" */}
+          {/* 2. Kategori Room */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <label
+              htmlFor="select-kategori-room"
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#26354b",
+              }}
+            >
+              Kategori
+            </label>
+            <div style={{ position: "relative" }}>
+              <select
+                id="select-kategori-room"
+                value={
+                  isTambahKategoriBaru
+                    ? "__TAMBAH_BARU__"
+                    : kategoriTerpilih || (categories.length > 0 ? categories[0] : "")
+                }
+                onChange={(e) => {
+                  setKategoriError("");
+                  if (e.target.value === "__TAMBAH_BARU__") {
+                    setIsTambahKategoriBaru(true);
+                  } else {
+                    setIsTambahKategoriBaru(false);
+                    setKategoriTerpilih(e.target.value);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  height: "46px",
+                  minHeight: "44px",
+                  padding: "0 38px 0 14px",
+                  borderRadius: "12px",
+                  border: "1.5px solid #dce6f2",
+                  backgroundColor: "#ffffff",
+                  fontSize: "13px",
+                  color: "#26354b",
+                  fontWeight: 600,
+                  outline: "none",
+                  boxSizing: "border-box",
+                  cursor: "pointer",
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                }}
+              >
+                {categories.map((kat) => (
+                  <option key={kat} value={kat}>
+                    {kat}
+                  </option>
+                ))}
+                <option value="__TAMBAH_BARU__">+ Tambah kategori baru</option>
+              </select>
+
+              {/* Chevron icon */}
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  right: "14px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                  color: "#64748b",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Input teks kategori baru jika opsi '+ Tambah kategori baru' dipilih */}
+            {isTambahKategoriBaru && (
+              <div style={{ marginTop: "4px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                <input
+                  id="input-kategori-baru"
+                  type="text"
+                  maxLength={30}
+                  value={kategoriBaruInput}
+                  onChange={(e) => {
+                    setKategoriBaruInput(e.target.value);
+                    if (kategoriError) setKategoriError("");
+                  }}
+                  placeholder="Ketik nama kategori baru (maks. 30 karakter)"
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    height: "46px",
+                    minHeight: "44px",
+                    padding: "0 14px",
+                    borderRadius: "12px",
+                    border: kategoriError
+                      ? "1.5px solid #ef4444"
+                      : "1.5px solid #3688f5",
+                    backgroundColor: "#f8faff",
+                    fontSize: "13px",
+                    color: "#26354b",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {kategoriError && (
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "#ef4444",
+                      margin: "2px 0 0 2px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {kategoriError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Password & Pilihan "Tanpa Password" */}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <div
               style={{

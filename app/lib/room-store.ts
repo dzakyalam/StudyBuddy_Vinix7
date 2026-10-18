@@ -25,6 +25,169 @@ export interface PresenceMessage {
 const ROOMS_STORAGE_KEY = "studybuddy_rooms";
 const STORAGE_PREFIX = "studybuddy_participants_";
 
+/**
+ * CATATAN SEMENTARA:
+ * Penyimpanan daftar kategori di localStorage terpisah dari data room
+ * agar kategori bersifat PERMANEN (tidak ikut terhapus ketika room selesai/dihapus).
+ * Kategori ini otomatis tersedia di form 'Buat Room' dan filter daftar room
+ * sampai endpoint backend / API kategori sesungguhnya tersedia.
+ */
+const CATEGORIES_STORAGE_KEY = "studybuddy_categories";
+export const SEED_CATEGORIES: string[] = [
+  "UI/UX Design",
+  "Cyber Security",
+  "Frontend Web",
+];
+
+// Mendapatkan semua kategori dari localStorage (dengan fallback ke SEED_CATEGORIES)
+export function getAllCategories(): string[] {
+  if (typeof window === "undefined") {
+    return SEED_CATEGORIES;
+  }
+  try {
+    const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const unique = Array.from(
+          new Set(
+            parsed
+              .filter(
+                (c): c is string => typeof c === "string" && c.trim().length > 0
+              )
+              .map((c) => c.trim())
+          )
+        );
+        if (unique.length > 0) {
+          return unique;
+        }
+      }
+    }
+    // Jika belum ada di localStorage, simpan data awal dari SEED_CATEGORIES
+    localStorage.setItem(
+      CATEGORIES_STORAGE_KEY,
+      JSON.stringify(SEED_CATEGORIES)
+    );
+  } catch (e) {
+    console.error("Gagal membaca daftar kategori dari localStorage:", e);
+  }
+  return SEED_CATEGORIES;
+}
+
+export interface SaveCategoryResult {
+  success: boolean;
+  category: string;
+  error?: string;
+}
+
+// Menyimpan kategori baru ke localStorage dengan validasi
+export function saveCategory(newCategoryInput: string): SaveCategoryResult {
+  const trimmed = (newCategoryInput || "").trim();
+
+  // Validasi: tidak boleh kosong
+  if (!trimmed) {
+    return {
+      success: false,
+      category: "",
+      error: "Nama kategori tidak boleh kosong.",
+    };
+  }
+
+  // Validasi: maksimal 30 karakter
+  if (trimmed.length > 30) {
+    return {
+      success: false,
+      category: trimmed,
+      error: "Nama kategori maksimal 30 karakter.",
+    };
+  }
+
+  try {
+    const currentCategories = getAllCategories();
+
+    // Pengecekan duplikat case-insensitive
+    const existing = currentCategories.find(
+      (c) => c.toLowerCase() === trimmed.toLowerCase()
+    );
+
+    if (existing) {
+      // Jika sudah ada, pilih kategori yang sudah ada dan jangan buat dobel
+      return {
+        success: true,
+        category: existing,
+      };
+    }
+
+    // Tambah kategori baru ke daftar permanen
+    const updated = [...currentCategories, trimmed];
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(updated));
+
+      // Emit event agar komponen lain langsung sinkron secara instan
+      window.dispatchEvent(
+        new CustomEvent("studybuddy_categories_changed", {
+          detail: { categories: updated },
+        })
+      );
+    }
+
+    return {
+      success: true,
+      category: trimmed,
+    };
+  } catch (e) {
+    console.error("Gagal menyimpan kategori ke localStorage:", e);
+    return {
+      success: false,
+      category: trimmed,
+      error: "Gagal menyimpan kategori baru.",
+    };
+  }
+}
+
+// Subskripsi perubahan daftar kategori
+function subscribeCategories(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("studybuddy_categories_changed", callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener("studybuddy_categories_changed", callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+let cachedCategoriesRaw: string | null = null;
+let cachedCategoriesList: string[] = SEED_CATEGORIES;
+
+function getCategoriesSnapshot(): string[] {
+  if (typeof window === "undefined") return SEED_CATEGORIES;
+  try {
+    const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    if (raw !== cachedCategoriesRaw) {
+      cachedCategoriesRaw = raw;
+      cachedCategoriesList = getAllCategories();
+    }
+  } catch {
+    cachedCategoriesList = SEED_CATEGORIES;
+  }
+  return cachedCategoriesList;
+}
+
+function getServerCategoriesSnapshot(): string[] {
+  return SEED_CATEGORIES;
+}
+
+// Hook reaktif untuk membaca daftar kategori di komponen React secara aman
+export function useCategories(): string[] {
+  return useSyncExternalStore(
+    subscribeCategories,
+    getCategoriesSnapshot,
+    getServerCategoriesSnapshot
+  );
+}
+
+
 // Mendapatkan semua room dari localStorage (dengan fallback ke initialRooms)
 export function getAllRooms(): Room[] {
   if (typeof window === "undefined") {

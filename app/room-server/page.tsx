@@ -6,16 +6,14 @@ import Header from "@/app/components/room/Header";
 import BottomNav from "@/app/components/room/BottomNav";
 import RoomCard from "@/app/components/room/RoomCard";
 import CreateRoomSheet from "@/app/components/room/CreateRoomSheet";
-import {
-  kategoriContoh,
-  type Room,
-} from "@/app/lib/mock-data";
-import { useRooms, saveNewRoom } from "@/app/lib/room-store";
+import { type Room } from "@/app/lib/mock-data";
+import { useRooms, useCategories, saveNewRoom } from "@/app/lib/room-store";
 import "./room-server.css";
 
 export default function RoomServerPage() {
   const router = useRouter();
   const daftarRoom = useRooms();
+  const daftarKategori = useCategories();
   const [kataKunci, setKataKunci] = useState<string>("");
   const [kategoriDipilih, setKategoriDipilih] = useState<string>("");
   const [bukaDropdown, setBukaDropdown] = useState<boolean>(false);
@@ -45,6 +43,7 @@ export default function RoomServerPage() {
 
       const cocokKategori =
         !kategoriDipilih ||
+        kategoriDipilih === "Semua" ||
         kategoriDipilih === "Semua Kategori" ||
         kategori === kategoriDipilih.toLowerCase();
 
@@ -211,9 +210,10 @@ export default function RoomServerPage() {
                       border: "1px solid #d4e5ff",
                       borderRadius: "16px",
                       boxShadow: "0 10px 28px rgba(38, 53, 75, 0.14)",
-                      minWidth: "170px",
+                      minWidth: "180px",
                       padding: "6px 0",
-                      overflow: "hidden",
+                      maxHeight: "320px",
+                      overflowY: "auto",
                     }}
                   >
                     <button
@@ -242,10 +242,10 @@ export default function RoomServerPage() {
                       }}
                       className="hover:bg-[#edf5ff] transition-colors"
                     >
-                      Semua Kategori
+                      Semua
                     </button>
 
-                    {kategoriContoh.map((kat) => {
+                    {daftarKategori.map((kat) => {
                       const terpilih = kategoriDipilih === kat;
                       return (
                         <button

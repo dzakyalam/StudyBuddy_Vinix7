@@ -22,7 +22,9 @@ export default function ParticipantTile({
 }: ParticipantTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Sambungkan localCameraStream ke elemen video
+  const hasVideo = isLocalUser && Boolean(localCameraStream);
+
+  // Sambungkan localCameraStream ke elemen video saat kamera aktif
   useEffect(() => {
     if (videoRef.current && localCameraStream) {
       videoRef.current.srcObject = localCameraStream;
@@ -30,15 +32,154 @@ export default function ParticipantTile({
   }, [localCameraStream]);
 
   // Nilai status jika tile ini adalah pengguna aktif lokal
-  const isSpeaking = isLocalUser && isLocalSpeaking !== undefined
-    ? isLocalSpeaking
-    : member.speaking;
+  const isSpeaking =
+    isLocalUser && isLocalSpeaking !== undefined
+      ? isLocalSpeaking
+      : member.speaking;
 
-  const isMicOn = isLocalUser && isLocalMicOn !== undefined
-    ? isLocalMicOn
-    : member.micOn;
+  const isMicOn =
+    isLocalUser && isLocalMicOn !== undefined ? isLocalMicOn : member.micOn;
 
-  const avatarSize = compact ? "42px" : "56px";
+  const namaTampilan = `${member.nama} ${isLocalUser ? "(Anda)" : ""}`;
+
+  // 1. TAMPILAN SAAT KAMERA AKTIF (ON CAM: Full di kotaknya)
+  if (hasVideo) {
+    return (
+      <div
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          width: compact ? "120px" : "100%",
+          minWidth: compact ? "120px" : undefined,
+          height: compact ? "88px" : "120px",
+          minHeight: compact ? "88px" : "116px",
+          flexShrink: compact ? 0 : undefined,
+          borderRadius: compact ? "14px" : "18px",
+          backgroundColor: "#0f172a",
+          border: isSpeaking ? "3px solid #3688f5" : "1.5px solid #dce8f8",
+          boxShadow: isSpeaking
+            ? "0 0 14px rgba(54, 136, 245, 0.45)"
+            : "0 2px 8px rgba(0, 0, 0, 0.08)",
+          boxSizing: "border-box",
+          transition: "border 0.2s ease, box-shadow 0.2s ease",
+        }}
+      >
+        {/* Video Kamera Penuh di Kotak (Mirror, Muted) */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          aria-label="Video kamera Anda"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: "scaleX(-1)", // Mirror selfie view
+            display: "block",
+            zIndex: 1,
+            borderRadius: "inherit",
+          }}
+        />
+
+        {/* Overlay Gradien Bawah: Nama & Status Mic agar selalu terbaca jelas */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 2,
+            padding: compact ? "16px 8px 6px" : "24px 10px 8px",
+            background:
+              "linear-gradient(to top, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.45) 60%, transparent 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "4px",
+            pointerEvents: "none",
+          }}
+        >
+          {/* Nama Peserta dengan Text Shadow */}
+          <span
+            style={{
+              fontSize: compact ? "11px" : "12px",
+              fontWeight: 700,
+              color: "#ffffff",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              textShadow: "0 1px 3px rgba(0, 0, 0, 0.8)",
+              minWidth: 0,
+            }}
+          >
+            {namaTampilan}
+          </span>
+
+          {/* Ikon Mic di Atas Video */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "18px",
+              height: "18px",
+              borderRadius: "50%",
+              backgroundColor: isMicOn
+                ? isSpeaking
+                  ? "#3688f5"
+                  : "rgba(255, 255, 255, 0.3)"
+                : "rgba(239, 68, 68, 0.9)",
+              flexShrink: 0,
+            }}
+          >
+            {isMicOn ? (
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-label="Mikrofon aktif"
+              >
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            ) : (
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-label="Mikrofon nonaktif"
+              >
+                <line x1="1" y1="1" x2="23" y2="23" />
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. TAMPILAN SAAT KAMERA TIDAK AKTIF (OFF CAM: Avatar rounded persegi dengan inisial)
+  const avatarSize = compact ? "40px" : "52px";
 
   return (
     <div
@@ -49,61 +190,41 @@ export default function ParticipantTile({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        justifyContent: "center",
         position: "relative",
         boxSizing: "border-box",
         width: compact ? "120px" : "100%",
         minWidth: compact ? "120px" : undefined,
+        height: compact ? "88px" : "120px",
+        minHeight: compact ? "88px" : "116px",
         flexShrink: compact ? 0 : undefined,
         border: isSpeaking ? "3px solid #3688f5" : "1.5px solid #dce8f8",
         boxShadow: isSpeaking ? "0 0 12px rgba(54, 136, 245, 0.25)" : "none",
         transition: "border 0.2s ease, box-shadow 0.2s ease",
       }}
     >
-      {/* Tampilan Avatar / Video Kamera */}
-      {isLocalUser && localCameraStream ? (
-        // Video Lokal (Mirror, Muted)
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          aria-label="Video kamera Anda"
-          style={{
-            width: avatarSize,
-            height: avatarSize,
-            minWidth: avatarSize,
-            minHeight: avatarSize,
-            borderRadius: compact ? "10px" : "14px",
-            objectFit: "cover",
-            transform: "scaleX(-1)", // Mirror
-            backgroundColor: "#000000",
-            boxShadow: "0 3px 8px rgba(0, 0, 0, 0.12)",
-          }}
-        />
-      ) : (
-        // Avatar PERSEGI bersudut membulat (inisial berwarna)
-        <div
-          aria-hidden="true"
-          style={{
-            width: avatarSize,
-            height: avatarSize,
-            minWidth: avatarSize,
-            minHeight: avatarSize,
-            borderRadius: compact ? "10px" : "14px", // Persegi bersudut membulat
-            backgroundColor: member.warnaAvatar || "#3688f5",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#ffffff",
-            fontSize: compact ? "15px" : "18px",
-            fontWeight: 800,
-            boxShadow: "0 3px 8px rgba(0, 0, 0, 0.12)",
-            userSelect: "none",
-          }}
-        >
-          {member.inisial}
-        </div>
-      )}
+      {/* Avatar PERSEGI bersudut membulat (inisial berwarna) */}
+      <div
+        aria-hidden="true"
+        style={{
+          width: avatarSize,
+          height: avatarSize,
+          minWidth: avatarSize,
+          minHeight: avatarSize,
+          borderRadius: compact ? "10px" : "14px",
+          backgroundColor: member.warnaAvatar || "#3688f5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#ffffff",
+          fontSize: compact ? "15px" : "18px",
+          fontWeight: 800,
+          boxShadow: "0 2px 6px rgba(0, 0, 0, 0.1)",
+          userSelect: "none",
+        }}
+      >
+        {member.inisial}
+      </div>
 
       {/* Nama di bawah avatar */}
       <span
@@ -111,7 +232,7 @@ export default function ParticipantTile({
           fontSize: compact ? "11px" : "13px",
           fontWeight: 700,
           color: "#26354b",
-          marginTop: compact ? "6px" : "10px",
+          marginTop: compact ? "6px" : "8px",
           textAlign: "center",
           whiteSpace: "nowrap",
           overflow: "hidden",
@@ -119,15 +240,15 @@ export default function ParticipantTile({
           maxWidth: "100%",
         }}
       >
-        {member.nama} {isLocalUser && "(Anda)"}
+        {namaTampilan}
       </span>
 
       {/* Ikon mic dan orang kecil di kanan bawah */}
       <div
         style={{
           position: "absolute",
-          bottom: "8px",
-          right: "8px",
+          bottom: compact ? "6px" : "8px",
+          right: compact ? "6px" : "8px",
           display: "inline-flex",
           alignItems: "center",
           gap: "4px",

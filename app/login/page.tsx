@@ -67,7 +67,7 @@ export default function LoginPage() {
 
           <div className="password-label">
             <label htmlFor="password">Password</label>
-            <a href="#bantuan">Lupa password?</a>
+            <a href="/lupa-sandi">Lupa password?</a>
           </div>
 
           <div className="password-wrapper">
@@ -149,7 +149,7 @@ export default function LoginPage() {
         </div>
 
         <p className="signup-text">
-          Belum punya akun? <Link href="/register">Daftar sekarang</Link>
+          Belum punya akun? <Link href="/registrasi">Daftar sekarang</Link>
         </p>
 
         <Link href="/" className="back-link">

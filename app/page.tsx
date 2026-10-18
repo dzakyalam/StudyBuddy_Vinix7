@@ -10,8 +10,8 @@ export default function LandingPage() {
           <Image
             src="/images/logo study buddy 2.png"
             alt="Logo Study Buddy"
-            width={36}
-            height={36}
+            width={90}
+            height={70}
             className="object-contain"
           />
           <span className="font-bold text-lg">StudyBuddy</span>
@@ -177,8 +177,8 @@ export default function LandingPage() {
           <Image
             src="/images/logo study buddy 2.png"
             alt="Logo Study Buddy"
-            width={30}
-            height={30}
+            width={90}
+            height={80}
             className="object-contain"
           />
           <span className="font-bold">StudyBuddy</span>

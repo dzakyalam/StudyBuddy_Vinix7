@@ -103,8 +103,8 @@ export default function HomePage() {
           <Image
             src="/images/logo study buddy 2.png"
             alt="Study Buddy Logo"
-            width={36}
-            height={36}
+            width={86}
+            height={70}
             className="object-contain"
           />
           <span>

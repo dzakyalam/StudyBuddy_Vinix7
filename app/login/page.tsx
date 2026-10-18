@@ -30,8 +30,8 @@ export default function LoginPage() {
         <Image
           src="/images/logo study buddy 2.png"
           alt="Study Buddy Logo"
-          width={40}
-          height={40}
+          width={100}
+          height={80}
           className="object-contain"
         />
         <span className="font-bold text-xl">StudyBuddy</span>
@@ -44,8 +44,8 @@ export default function LoginPage() {
             <Image
               src="/images/logo study buddy 2.png"
               alt="Study Buddy Logo"
-              width={80}
-              height={80}
+              width={100}
+              height={90}
               className="object-contain"
             />
           </div>

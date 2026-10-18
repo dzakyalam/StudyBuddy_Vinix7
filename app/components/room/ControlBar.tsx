@@ -13,6 +13,7 @@ export interface ControlBarProps {
   onCaptureScreenshot?: () => void;
   onOpenChat?: () => void;
   onLeaveClick?: () => void;
+  isPill?: boolean;
 }
 
 export default function ControlBar({
@@ -26,37 +27,43 @@ export default function ControlBar({
   onCaptureScreenshot,
   onOpenChat,
   onLeaveClick,
+  isPill = false,
 }: ControlBarProps = {}) {
   return (
     <aside
       aria-label="Panel Kontrol Panggilan"
       style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
+        position: isPill ? "relative" : "fixed",
+        bottom: isPill ? undefined : 0,
+        left: isPill ? undefined : 0,
+        right: isPill ? undefined : 0,
         zIndex: 60,
         display: "flex",
         justifyContent: "center",
         pointerEvents: "none",
+        width: "100%",
+        boxSizing: "border-box",
       }}
     >
       <div
         style={{
-          width: "100%",
-          maxWidth: "430px",
+          width: isPill ? "auto" : "100%",
+          maxWidth: isPill ? "fit-content" : "430px",
           pointerEvents: "auto",
-          backgroundColor: "#ffffff",
-          borderTopLeftRadius: "22px",
-          borderTopRightRadius: "22px",
-          borderTop: "1.5px solid #dce8f8",
-          borderLeft: "1px solid #edf4fc",
-          borderRight: "1px solid #edf4fc",
-          boxShadow: "0 -4px 20px rgba(38, 53, 75, 0.08)",
-          display: "flex",
+          backgroundColor: isPill ? "#edf5ff" : "#ffffff",
+          borderRadius: isPill ? "9999px" : "22px 22px 0 0",
+          border: isPill ? "1.5px solid #cce1ff" : "1.5px solid #dce8f8",
+          borderBottom: isPill ? "1.5px solid #cce1ff" : "none",
+          boxShadow: isPill
+            ? "0 8px 24px rgba(54, 136, 245, 0.16)"
+            : "0 -4px 20px rgba(38, 53, 75, 0.08)",
+          display: "inline-flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          padding: "10px 14px calc(12px + env(safe-area-inset-bottom, 0px))",
+          justifyContent: isPill ? "center" : "space-between",
+          gap: isPill ? "10px" : "6px",
+          padding: isPill
+            ? "8px 18px"
+            : "10px 14px calc(12px + env(safe-area-inset-bottom, 0px))",
           boxSizing: "border-box",
         }}
       >
@@ -100,7 +107,7 @@ export default function ControlBar({
               <line x1="8" y1="23" x2="16" y2="23" />
             </svg>
           ) : (
-            // Ikon Mic Mati Merah Dicoret
+            // Ikon Mic Dicoret Merah
             <svg
               width="20"
               height="20"
@@ -120,7 +127,7 @@ export default function ControlBar({
           )}
         </button>
 
-        {/* 2. Tombol Kamera: Abu-abu jika mati, Biru jika aktif */}
+        {/* 2. Tombol Kamera: Merah dicoret jika mati, Biru jika aktif */}
         <button
           type="button"
           onClick={onToggleCam}
@@ -131,9 +138,9 @@ export default function ControlBar({
             minWidth: "44px",
             minHeight: "44px",
             borderRadius: "50%",
-            backgroundColor: isCamOn ? "#edf5ff" : "#f1f5fa",
-            color: isCamOn ? "#3688f5" : "#64748b",
-            border: isCamOn ? "1.5px solid #3688f5" : "1px solid #e2e8f0",
+            backgroundColor: isCamOn ? "#edf5ff" : "#fef2f2",
+            color: isCamOn ? "#3688f5" : "#ef4444",
+            border: isCamOn ? "1.5px solid #3688f5" : "1px solid #fee2e2",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -143,7 +150,7 @@ export default function ControlBar({
           }}
         >
           {isCamOn ? (
-            // Ikon Kamera Aktif
+            // Ikon Kamera Normal
             <svg
               width="20"
               height="20"
@@ -158,7 +165,7 @@ export default function ControlBar({
               <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
             </svg>
           ) : (
-            // Ikon Kamera Mati Abu-abu
+            // Ikon Kamera Dicoret Merah
             <svg
               width="20"
               height="20"
@@ -170,15 +177,15 @@ export default function ControlBar({
               strokeLinejoin="round"
             >
               <line x1="1" y1="1" x2="23" y2="23" />
-              <path d="M21 21l-3.34-3.34" />
-              <path d="M23 7l-7 5v1.17l4.87 3.48A1 1 0 0 0 23 15.82V7z" />
-              <path d="M1 5h2m4 0h9a2 2 0 0 1 2 2v8.5" />
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              <path d="M21 21l-3.34-3.34L3 3" />
+              <path d="M1 5v11a2 2 0 0 0 2 2h14" />
+              <path d="M23 7l-7 5 7 5V7z" />
+              <path d="M16 16V5a2 2 0 0 0-2-2H8" />
             </svg>
           )}
         </button>
 
-        {/* 3. Tombol Bagikan Layar (Share Screen) */}
+        {/* 3. Tombol Berbagi Layar (Share Screen): Biru solid jika aktif */}
         <button
           type="button"
           onClick={onToggleScreenShare}
@@ -191,18 +198,21 @@ export default function ControlBar({
             minWidth: "44px",
             minHeight: "44px",
             borderRadius: "50%",
-            backgroundColor: isScreenSharing ? "#edf5ff" : "#f1f5fa",
-            color: isScreenSharing ? "#3688f5" : isScreenShareSupported ? "#26354b" : "#94a3b8",
-            border: isScreenSharing ? "1.5px solid #3688f5" : "1px solid #e2e8f0",
-            opacity: isScreenShareSupported ? 1 : 0.6,
-            cursor: isScreenShareSupported ? "pointer" : "not-allowed",
+            backgroundColor: isScreenSharing ? "#3688f5" : "#ffffff",
+            color: isScreenSharing ? "#ffffff" : "#26354b",
+            border: isScreenSharing
+              ? "1.5px solid #3688f5"
+              : "1px solid #dce6f2",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
+            cursor: isScreenShareSupported ? "pointer" : "not-allowed",
+            opacity: isScreenShareSupported ? 1 : 0.5,
             padding: 0,
             transition: "all 0.15s ease",
           }}
         >
+          {/* Ikon Monitor / Share Screen */}
           <svg
             width="20"
             height="20"
@@ -216,8 +226,6 @@ export default function ControlBar({
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
             <line x1="8" y1="21" x2="16" y2="21" />
             <line x1="12" y1="17" x2="12" y2="21" />
-            <polyline points="10 9 12 7 14 9" />
-            <line x1="12" y1="7" x2="12" y2="13" />
           </svg>
         </button>
 
@@ -225,16 +233,16 @@ export default function ControlBar({
         <button
           type="button"
           onClick={onCaptureScreenshot}
-          aria-label="Tangkapan layar"
+          aria-label="Ambil tangkapan layar"
           style={{
             width: "44px",
             height: "44px",
             minWidth: "44px",
             minHeight: "44px",
             borderRadius: "50%",
-            backgroundColor: "#f1f5fa",
+            backgroundColor: "#ffffff",
             color: "#26354b",
-            border: "1px solid #e2e8f0",
+            border: "1px solid #dce6f2",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -243,6 +251,7 @@ export default function ControlBar({
             transition: "all 0.15s ease",
           }}
         >
+          {/* Ikon Kamera Foto (Snapshot) */}
           <svg
             width="20"
             height="20"
@@ -258,28 +267,29 @@ export default function ControlBar({
           </svg>
         </button>
 
-        {/* 5. Tombol Chat (Biru) */}
+        {/* 5. Tombol Chat Obrolan (Hanya perlu di mobile/tablet, atau tetap tersedia) */}
         <button
           type="button"
           onClick={onOpenChat}
-          aria-label="Chat"
+          aria-label="Buka obrolan chat"
           style={{
             width: "44px",
             height: "44px",
             minWidth: "44px",
             minHeight: "44px",
             borderRadius: "50%",
-            backgroundColor: "#3688f5",
-            color: "#ffffff",
-            border: "none",
+            backgroundColor: "#ffffff",
+            color: "#26354b",
+            border: "1px solid #dce6f2",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
             padding: 0,
-            boxShadow: "0 2px 8px rgba(54, 136, 245, 0.25)",
+            transition: "all 0.15s ease",
           }}
         >
+          {/* Ikon Pesan / Chat */}
           <svg
             width="20"
             height="20"
@@ -294,7 +304,7 @@ export default function ControlBar({
           </svg>
         </button>
 
-        {/* 6. Tombol Akhiri (Merah, memicu konfirmasi keluar atau kembali ke /room-server) */}
+        {/* 6. Tombol Merah Keluar Room */}
         {onLeaveClick ? (
           <button
             type="button"

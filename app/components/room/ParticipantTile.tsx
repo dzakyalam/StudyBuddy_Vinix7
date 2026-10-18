@@ -9,6 +9,7 @@ export interface ParticipantTileProps {
   localCameraStream?: MediaStream | null;
   isLocalSpeaking?: boolean;
   isLocalMicOn?: boolean;
+  compact?: boolean;
 }
 
 export default function ParticipantTile({
@@ -17,6 +18,7 @@ export default function ParticipantTile({
   localCameraStream = null,
   isLocalSpeaking,
   isLocalMicOn,
+  compact = false,
 }: ParticipantTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -36,17 +38,22 @@ export default function ParticipantTile({
     ? isLocalMicOn
     : member.micOn;
 
+  const avatarSize = compact ? "42px" : "56px";
+
   return (
     <div
       style={{
         backgroundColor: "#edf5ff",
-        borderRadius: "18px",
-        padding: "16px 12px 14px",
+        borderRadius: compact ? "14px" : "18px",
+        padding: compact ? "10px 8px 8px" : "16px 12px 14px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         position: "relative",
         boxSizing: "border-box",
+        width: compact ? "120px" : "100%",
+        minWidth: compact ? "120px" : undefined,
+        flexShrink: compact ? 0 : undefined,
         border: isSpeaking ? "3px solid #3688f5" : "1.5px solid #dce8f8",
         boxShadow: isSpeaking ? "0 0 12px rgba(54, 136, 245, 0.25)" : "none",
         transition: "border 0.2s ease, box-shadow 0.2s ease",
@@ -62,11 +69,11 @@ export default function ParticipantTile({
           muted
           aria-label="Video kamera Anda"
           style={{
-            width: "56px",
-            height: "56px",
-            minWidth: "56px",
-            minHeight: "56px",
-            borderRadius: "14px",
+            width: avatarSize,
+            height: avatarSize,
+            minWidth: avatarSize,
+            minHeight: avatarSize,
+            borderRadius: compact ? "10px" : "14px",
             objectFit: "cover",
             transform: "scaleX(-1)", // Mirror
             backgroundColor: "#000000",
@@ -78,17 +85,17 @@ export default function ParticipantTile({
         <div
           aria-hidden="true"
           style={{
-            width: "56px",
-            height: "56px",
-            minWidth: "56px",
-            minHeight: "56px",
-            borderRadius: "14px", // Persegi bersudut membulat
+            width: avatarSize,
+            height: avatarSize,
+            minWidth: avatarSize,
+            minHeight: avatarSize,
+            borderRadius: compact ? "10px" : "14px", // Persegi bersudut membulat
             backgroundColor: member.warnaAvatar || "#3688f5",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "#ffffff",
-            fontSize: "18px",
+            fontSize: compact ? "15px" : "18px",
             fontWeight: 800,
             boxShadow: "0 3px 8px rgba(0, 0, 0, 0.12)",
             userSelect: "none",
@@ -101,10 +108,10 @@ export default function ParticipantTile({
       {/* Nama di bawah avatar */}
       <span
         style={{
-          fontSize: "13px",
+          fontSize: compact ? "11px" : "13px",
           fontWeight: 700,
           color: "#26354b",
-          marginTop: "10px",
+          marginTop: compact ? "6px" : "10px",
           textAlign: "center",
           whiteSpace: "nowrap",
           overflow: "hidden",

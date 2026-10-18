@@ -17,6 +17,14 @@ import {
   removeParticipantFromRoom,
   setupRoomPresence,
 } from "@/app/lib/room-store";
+import "./room.css";
+
+interface MockJoinRequest {
+  id: string;
+  nama: string;
+  inisial: string;
+  warnaAvatar: string;
+}
 
 function RoomContent() {
   const router = useRouter();
@@ -30,6 +38,15 @@ function RoomContent() {
   const [sudahGabung, setSudahGabung] = useState(false);
   const [bukaChat, setBukaChat] = useState(false);
   const [bukaDialogKeluar, setBukaDialogKeluar] = useState(false);
+
+  // Satu data mock permintaan bergabung untuk sidebar desktop
+  const [permintaanBergabung, setPermintaanBergabung] =
+    useState<MockJoinRequest | null>({
+      id: "req-1",
+      nama: "Rian Pratama",
+      inisial: "RP",
+      warnaAvatar: "#6366F1",
+    });
 
   // Sumber data peserta untuk room ini dari room-store
   const [daftarPeserta, setDaftarPeserta] = useState<Member[]>(() => {
@@ -45,7 +62,10 @@ function RoomContent() {
     if (!room) return;
 
     function handleLocalUpdate(e: Event) {
-      const customEvent = e as CustomEvent<{ roomId: string; participants: Member[] }>;
+      const customEvent = e as CustomEvent<{
+        roomId: string;
+        participants: Member[];
+      }>;
       if (customEvent.detail && customEvent.detail.roomId === room?.id) {
         setDaftarPeserta(customEvent.detail.participants);
       }
@@ -152,6 +172,16 @@ function RoomContent() {
     };
   }, [room, sudahGabung, media.isMicOn, media.isCamOn, media.isSpeaking]);
 
+  function handleIzinkanPermintaan(req: MockJoinRequest) {
+    media.showToast(`${req.nama} diizinkan bergabung`);
+    setPermintaanBergabung(null);
+  }
+
+  function handleTolakPermintaan(req: MockJoinRequest) {
+    media.showToast(`Permintaan ${req.nama} ditolak`);
+    setPermintaanBergabung(null);
+  }
+
   // Jika room tidak ditemukan, tampilkan pesan error + tombol kembali
   if (!room) {
     return (
@@ -195,7 +225,7 @@ function RoomContent() {
             strokeLinejoin="round"
           >
             <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            <line x1="21" y1="2" x2="16.65" y2="16.65" />
           </svg>
         </div>
 
@@ -218,7 +248,8 @@ function RoomContent() {
             lineHeight: 1.6,
           }}
         >
-          ID atau kode room yang Anda tuju tidak valid atau sesi belajar telah berakhir.
+          ID atau kode room yang Anda tuju tidak valid atau sesi belajar telah
+          berakhir.
         </p>
 
         <Link
@@ -248,17 +279,7 @@ function RoomContent() {
   const presenter = daftarPeserta[0]?.nama || "Max Zul";
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#ffffff",
-        maxWidth: "430px",
-        margin: "0 auto",
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-      }}
-    >
+    <div className="room-page-wrapper">
       {/* Toast Notifikasi / Error Media Bahasa Indonesia */}
       {media.toastMessage && (
         <div
@@ -306,7 +327,7 @@ function RoomContent() {
           boxSizing: "border-box",
         }}
       >
-        {/* Sisi Kiri: Tombol Kembali (memicu konfirmasi keluar) + Judul & Subjudul */}
+        {/* Sisi Kiri: Tombol Kembali + Judul & Subjudul */}
         <div
           style={{
             display: "flex",
@@ -375,7 +396,7 @@ function RoomContent() {
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                maxWidth: "240px",
+                maxWidth: "320px",
               }}
             >
               {room.nama}
@@ -447,75 +468,275 @@ function RoomContent() {
         </button>
       </header>
 
-      {/* Konten Utama Room */}
-      <main
-        style={{
-          flex: 1,
-          padding: "16px 16px calc(92px + env(safe-area-inset-bottom, 0px))",
-          display: "flex",
-          flexDirection: "column",
-          gap: "20px",
-          boxSizing: "border-box",
-        }}
-      >
-        {/* Label "Screen" dan Panggung Rounded Besar */}
-        <StageView
-          presenterName={presenter}
-          screenStream={media.screenStream}
-        />
-
-        {/* Daftar Peserta (N dihitung dari array peserta) */}
-        <section aria-label="Daftar Peserta Room">
-          <h2
-            style={{
-              fontSize: "13px",
-              fontWeight: 700,
-              color: "#26354b",
-              margin: "0 0 12px 0",
-            }}
-          >
-            Peserta ({daftarPeserta.length})
-          </h2>
-
-          {/* Grid 2 Kolom Peserta */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "12px",
-            }}
+      {/* Konten Utama Responsif (Mobile: 1 kolom; Desktop: 2 kolom) */}
+      <main className="room-main-container">
+        {/* Kolom / Area Utama */}
+        <div className="room-primary-area">
+          {/* Di Desktop (>=1024px): Strip thumbnail peserta di atas panggung */}
+          <section
+            aria-label="Thumbnail Peserta"
+            className="room-desktop-strip"
           >
             {daftarPeserta.map((peserta) => {
               const isLocalUser = peserta.id === penggunaAktif.id;
 
               return (
                 <ParticipantTile
-                  key={peserta.id}
+                  key={`strip-${peserta.id}`}
                   member={peserta}
                   isLocalUser={isLocalUser}
                   localCameraStream={isLocalUser ? media.cameraStream : null}
                   isLocalSpeaking={isLocalUser ? media.isSpeaking : undefined}
                   isLocalMicOn={isLocalUser ? media.isMicOn : undefined}
+                  compact={true}
                 />
               );
             })}
+          </section>
+
+          {/* Panggung 16:9 Rounded dengan Overlay */}
+          <StageView
+            presenterName={presenter}
+            screenStream={media.screenStream}
+          />
+
+          {/* Di Mobile (<768px) & Tablet (768-1023px): Grid Peserta di Bawah Panggung */}
+          <section
+            aria-label="Daftar Peserta Room"
+            className="room-mobile-participants"
+          >
+            <h2
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "#26354b",
+                margin: "0 0 12px 0",
+              }}
+            >
+              Peserta ({daftarPeserta.length})
+            </h2>
+
+            {/* Grid 2 Kolom (Mobile) atau 3 Kolom (Tablet) */}
+            <div className="room-participants-grid">
+              {daftarPeserta.map((peserta) => {
+                const isLocalUser = peserta.id === penggunaAktif.id;
+
+                return (
+                  <ParticipantTile
+                    key={peserta.id}
+                    member={peserta}
+                    isLocalUser={isLocalUser}
+                    localCameraStream={isLocalUser ? media.cameraStream : null}
+                    isLocalSpeaking={isLocalUser ? media.isSpeaking : undefined}
+                    isLocalMicOn={isLocalUser ? media.isMicOn : undefined}
+                  />
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Control bar khusus Desktop berupa pill biru muda di tengah bawah */}
+          <div className="room-desktop-controlbar">
+            <ControlBar
+              isMicOn={media.isMicOn}
+              isCamOn={media.isCamOn}
+              isScreenSharing={media.isScreenSharing}
+              isScreenShareSupported={media.isScreenShareSupported}
+              onToggleMic={media.toggleMic}
+              onToggleCam={media.toggleCam}
+              onToggleScreenShare={media.toggleScreenShare}
+              onCaptureScreenshot={media.captureScreenshot}
+              onOpenChat={() => setBukaChat(true)}
+              onLeaveClick={() => setBukaDialogKeluar(true)}
+              isPill={true}
+            />
           </div>
-        </section>
+        </div>
+
+        {/* Sidebar Kanan Desktop (±340px) */}
+        <aside
+          aria-label="Panel Samping Room"
+          className="room-desktop-sidebar"
+        >
+          {/* Kartu Permintaan Bergabung (Satu data mock) */}
+          {permintaanBergabung ? (
+            <div
+              style={{
+                backgroundColor: "#ffffff",
+                borderRadius: "20px",
+                border: "1.5px solid #e7edf5",
+                padding: "16px",
+                boxShadow: "0 2px 10px rgba(38, 53, 75, 0.04)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    color: "#26354b",
+                  }}
+                >
+                  Permintaan Bergabung
+                </span>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#3688f5",
+                    backgroundColor: "#edf5ff",
+                    padding: "2px 8px",
+                    borderRadius: "9999px",
+                  }}
+                >
+                  1 baru
+                </span>
+              </div>
+
+              {/* Data Pengguna Mock */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <div
+                  aria-hidden="true"
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "10px",
+                    backgroundColor: permintaanBergabung.warnaAvatar,
+                    color: "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    boxShadow: "0 2px 6px rgba(0, 0, 0, 0.1)",
+                    userSelect: "none",
+                  }}
+                >
+                  {permintaanBergabung.inisial}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#26354b",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {permintaanBergabung.nama}
+                  </p>
+                  <span style={{ fontSize: "11px", color: "#64748b" }}>
+                    Ingin bergabung ke room
+                  </span>
+                </div>
+              </div>
+
+              {/* Tombol Izinkan (Biru) & Tolak (Merah) */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "8px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleIzinkanPermintaan(permintaanBergabung)}
+                  style={{
+                    minHeight: "44px",
+                    borderRadius: "9999px",
+                    backgroundColor: "#3688f5",
+                    color: "#ffffff",
+                    border: "none",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(54, 136, 245, 0.25)",
+                    transition: "opacity 0.15s ease",
+                  }}
+                >
+                  Izinkan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTolakPermintaan(permintaanBergabung)}
+                  style={{
+                    minHeight: "44px",
+                    borderRadius: "9999px",
+                    backgroundColor: "#fff1f2",
+                    color: "#ef4444",
+                    border: "1px solid #fecdd3",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    transition: "opacity 0.15s ease",
+                  }}
+                >
+                  Tolak
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                backgroundColor: "#f8fafc",
+                borderRadius: "16px",
+                border: "1px dashed #cbd5e1",
+                padding: "12px",
+                textAlign: "center",
+                color: "#64748b",
+                fontSize: "12px",
+                fontWeight: 600,
+              }}
+            >
+              Tidak ada permintaan bergabung baru
+            </div>
+          )}
+
+          {/* Panel Chat yang Selalu Tampil di Desktop */}
+          <ChatPanel
+            isOpen={true}
+            onClose={() => {}}
+            embedded={true}
+          />
+        </aside>
       </main>
 
-      {/* Panel Kontrol di Bagian Bawah */}
-      <ControlBar
-        isMicOn={media.isMicOn}
-        isCamOn={media.isCamOn}
-        isScreenSharing={media.isScreenSharing}
-        isScreenShareSupported={media.isScreenShareSupported}
-        onToggleMic={media.toggleMic}
-        onToggleCam={media.toggleCam}
-        onToggleScreenShare={media.toggleScreenShare}
-        onCaptureScreenshot={media.captureScreenshot}
-        onOpenChat={() => setBukaChat(true)}
-        onLeaveClick={() => setBukaDialogKeluar(true)}
-      />
+      {/* Panel Kontrol di Mobile & Tablet (Menempel di Bagian Bawah) */}
+      <div className="room-mobile-controlbar">
+        <ControlBar
+          isMicOn={media.isMicOn}
+          isCamOn={media.isCamOn}
+          isScreenSharing={media.isScreenSharing}
+          isScreenShareSupported={media.isScreenShareSupported}
+          onToggleMic={media.toggleMic}
+          onToggleCam={media.toggleCam}
+          onToggleScreenShare={media.toggleScreenShare}
+          onCaptureScreenshot={media.captureScreenshot}
+          onOpenChat={() => setBukaChat(true)}
+          onLeaveClick={() => setBukaDialogKeluar(true)}
+          isPill={false}
+        />
+      </div>
 
       {/* Bottom Sheet "Siap bergabung?" sebelum masuk live room */}
       <JoinRoomSheet
@@ -533,10 +754,11 @@ function RoomContent() {
         onCancel={() => setBukaDialogKeluar(false)}
       />
 
-      {/* Panel Obrolan (Chat Bottom Sheet) */}
+      {/* Panel Obrolan (Chat Bottom Sheet untuk Mobile & Tablet) */}
       <ChatPanel
         isOpen={bukaChat}
         onClose={() => setBukaChat(false)}
+        embedded={false}
       />
     </div>
   );

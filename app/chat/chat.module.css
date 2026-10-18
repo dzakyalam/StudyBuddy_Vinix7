@@ -1,0 +1,244 @@
+/* ===========================================================
+   CHAT PAGE
+   Kerangka mengikuti halaman /home (project web):
+   - shell  : max-width 1100px
+   - konten : max-width 760px
+   - header : tinggi 75px
+   Ikon & teks memakai token warna project (--blue dll).
+   =========================================================== */
+
+.screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1100px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding-bottom: 85px; /* ruang untuk navbar */
+  background: var(--white);
+  color: var(--text);
+}
+
+/* --------------------------- HEADER --------------------------- */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 75px;
+  padding: 0 28px;
+  border-bottom: 1px solid #f0f3f8;
+  background: var(--white);
+}
+
+.logoWrap {
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  width: auto;
+  height: 48px;
+  object-fit: contain;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--blue);
+  transition: background 0.18s ease;
+}
+
+.iconButton:hover {
+  background: var(--blue-light);
+}
+
+/* ---------------------------- BODY ---------------------------- */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 22px 25px 35px;
+}
+
+/* -------------------------- SEARCH BAR -------------------------- */
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 18px;
+  border-radius: 999px;
+  background: #f5f5f5;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: #757575;
+}
+
+.searchButton {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--blue);
+  color: var(--white);
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.searchButton:hover {
+  background: var(--blue-dark);
+}
+
+/* --------------------------- TAB FILTER --------------------------- */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #757575;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+.tab:hover {
+  color: var(--blue);
+}
+
+.tabActive {
+  background: var(--blue);
+  color: var(--white);
+}
+
+.tabActive:hover {
+  background: var(--blue-dark);
+  color: var(--white);
+}
+
+/* --------------------------- CHAT LIST --------------------------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.chatItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 4px;
+  border-bottom: 1px solid #f0f3f8;
+  transition: background 0.18s ease;
+}
+
+.chatItem:last-child {
+  border-bottom: none;
+}
+
+.avatarWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatarImg {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.groupAvatar {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.chatContent {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.chatName {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e1e1e;
+}
+
+.chatMessage {
+  margin: 0;
+  overflow: hidden;
+  color: #757575;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------- RESPONSIF --------------------------- */
+
+@media (max-width: 760px) {
+  .header {
+    height: 68px;
+    padding: 0 18px;
+  }
+
+  .logo {
+    height: 42px;
+  }
+
+  .body {
+    padding: 18px 18px 30px;
+  }
+}

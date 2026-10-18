@@ -106,15 +106,19 @@ export default function AgendaCard({ agenda, onClick }: AgendaCardProps) {
         backgroundColor: "#ffffff",
         borderRadius: "18px",
         border: "1.5px solid #e7edf5",
-        padding: "16px",
+        padding: "16px 18px",
         boxSizing: "border-box",
         boxShadow: "0 2px 10px rgba(38, 53, 75, 0.04)",
         display: "flex",
         flexDirection: "column",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
+        justifyContent: "space-between",
+        width: "100%",
+        height: "100%",
+        transition: "all 0.2s ease",
         cursor: onClick ? "pointer" : "default",
         outline: "none",
       }}
+      className="w-full h-full hover:border-[#3688f5] hover:shadow-md active:scale-[0.99] transition-all duration-200"
     >
       {/* Baris Atas: Ikon Kotak Biru Muda, Kategori, Judul & Badge Biru */}
       <div

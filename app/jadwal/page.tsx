@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useSyncExternalStore, Suspense } from "react";
 import Header from "@/app/components/room/Header";
 import BottomNav from "@/app/components/room/BottomNav";
 import AgendaSummaryCard from "@/app/components/jadwal/AgendaSummaryCard";
@@ -14,6 +14,7 @@ import {
   isBesok,
   type Agenda,
 } from "@/app/lib/mock-data";
+import "./jadwal.css";
 
 // Helper memformat tanggal hari ini dalam format kapital: "KAMIS, 4 OKT 2026"
 function getFormattedToday(): string {
@@ -30,13 +31,22 @@ function getFormattedToday(): string {
   }
 }
 
-export default function JadwalPage() {
+function subscribeDate() {
+  return () => {};
+}
+
+function JadwalContent() {
   const [daftarAgenda, setDaftarAgenda] = useState<Agenda[]>(initialAgendas);
   const [activeTab, setActiveTab] = useState<AgendaTab>("Semua");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [agendaToEdit, setAgendaToEdit] = useState<Agenda | null>(null);
 
-  const tanggalHariIni = useMemo(() => getFormattedToday(), []);
+  // Gunakan useSyncExternalStore: mengembalikan nilai server yang stabil saat prerender, dan tanggal client setelah hidrasi
+  const tanggalHariIni = useSyncExternalStore(
+    subscribeDate,
+    getFormattedToday,
+    () => "KAMIS, 4 OKT 2026"
+  );
 
   // Hitung jumlah kegiatan hari ini untuk kartu ringkasan
   const jumlahHariIni = useMemo(() => {
@@ -88,85 +98,81 @@ export default function JadwalPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#ffffff",
-        maxWidth: "430px",
-        margin: "0 auto",
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-      }}
-    >
+    <div className="jadwal-page-shell min-h-screen bg-white flex flex-col relative">
       {/* Header Utama dengan logo StudyBuddy */}
       <Header />
 
-      {/* Konten Halaman Jadwal */}
-      <main
-        style={{
-          flex: 1,
-          padding: "18px 16px 110px",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* Tanggal Hari Ini & Sapaan Pengguna */}
+      {/* Konten Halaman Jadwal Responsif (Mobile: ~600px, Tablet: ~768px, Laptop/Desktop: max-w-6xl) */}
+      <main className="jadwal-container w-full max-w-xl md:max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col pb-36 lg:pb-32">
+        {/* Tanggal Hari Ini & Sapaan Pengguna + Tombol Aksi Desktop */}
         <section
           aria-label="Sapaan Pengguna"
-          style={{ marginBottom: "16px" }}
+          className="mb-4 sm:mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3"
         >
-          <p
+          <div>
+            <p
+              style={{
+                color: "#8c9fb5",
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+                margin: "0 0 4px",
+              }}
+              className="text-xs sm:text-sm font-bold"
+            >
+              {tanggalHariIni}
+            </p>
+            <h1
+              style={{
+                color: "#26354b",
+                margin: 0,
+                letterSpacing: "-0.4px",
+              }}
+              className="text-xl sm:text-2xl md:text-3xl font-extrabold"
+            >
+              Hallo {penggunaAktif.nama} 👋
+            </h1>
+          </div>
+
+          {/* Tombol Buat Jadwal inline di layar besar (Desktop >= 1024px) */}
+          <button
+            type="button"
+            onClick={handleOpenCreateForm}
+            aria-label="Buat Jadwal Baru"
             style={{
-              fontSize: "12px",
+              backgroundColor: "#3688f5",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "9999px",
+              padding: "10px 22px",
+              minHeight: "44px",
+              boxShadow: "0 4px 14px rgba(54, 136, 245, 0.3)",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "14px",
               fontWeight: 700,
-              color: "#8c9fb5",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-              margin: "0 0 4px",
+              cursor: "pointer",
+              transition: "background-color 0.15s ease, transform 0.1s ease",
             }}
+            className="hidden lg:inline-flex hover:bg-[#2573e0] active:scale-95 shadow-sm flex-shrink-0"
           >
-            {tanggalHariIni}
-          </p>
-          <h1
-            style={{
-              fontSize: "22px",
-              fontWeight: 800,
-              color: "#26354b",
-              margin: 0,
-              letterSpacing: "-0.4px",
-            }}
-          >
-            Hallo {penggunaAktif.nama} 👋
-          </h1>
+            <span>Buat Jadwal +</span>
+          </button>
         </section>
 
-        {/* Kartu Ringkasan Biru Bergradasi */}
-        <section aria-label="Ringkasan Agenda">
+        {/* Kartu Ringkasan Biru Bergradasi di Atas */}
+        <section aria-label="Ringkasan Agenda" className="w-full">
           <AgendaSummaryCard jumlahHariIni={jumlahHariIni} />
         </section>
 
         {/* Tab Pill Filter: Semua, Hari Ini, Besok */}
-        <section aria-label="Filter Waktu Agenda">
-          <AgendaTabs
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-          />
+        <section aria-label="Filter Waktu Agenda" className="w-full">
+          <AgendaTabs activeTab={activeTab} onTabChange={setActiveTab} />
         </section>
 
-        {/* Daftar Kartu Agenda atau Keadaan Kosong */}
-        <section
-          aria-label="Daftar Agenda Kegiatan"
-          style={{ flex: 1 }}
-        >
+        {/* Daftar Kartu Agenda: 1 Kolom di Mobile/Tablet, 2 Kolom di Layar Lebar (lg >= 1024px) */}
+        <section aria-label="Daftar Agenda Kegiatan" style={{ flex: 1 }}>
           {agendaDitampilkan.length > 0 ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-              }}
-            >
+            <div className="jadwal-grid grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
               {agendaDitampilkan.map((agenda) => (
                 <AgendaCard
                   key={agenda.id}
@@ -190,6 +196,7 @@ export default function JadwalPage() {
                 border: "1.5px dashed #cbd5e1",
                 marginTop: "4px",
               }}
+              className="w-full"
             >
               <div
                 aria-hidden="true"
@@ -246,23 +253,8 @@ export default function JadwalPage() {
         </section>
       </main>
 
-      {/* Tombol "Buat Jadwal +" Mengambang di Kanan Bawah */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "100%",
-          maxWidth: "430px",
-          padding: "0 16px",
-          boxSizing: "border-box",
-          display: "flex",
-          justifyContent: "flex-end",
-          pointerEvents: "none",
-          zIndex: 45,
-        }}
-      >
+      {/* Tombol "Buat Jadwal +" Mengambang: Diposisikan di Kanan Bawah tanpa menutupi kartu */}
+      <div className="jadwal-floating-btn-wrap fixed bottom-20 sm:bottom-24 right-4 sm:right-6 lg:right-10 z-40">
         <button
           type="button"
           onClick={handleOpenCreateForm}
@@ -273,7 +265,7 @@ export default function JadwalPage() {
             color: "#ffffff",
             border: "none",
             borderRadius: "9999px",
-            padding: "12px 20px",
+            padding: "12px 22px",
             minHeight: "44px",
             boxShadow: "0 6px 20px rgba(54, 136, 245, 0.4)",
             display: "inline-flex",
@@ -284,6 +276,7 @@ export default function JadwalPage() {
             cursor: "pointer",
             transition: "transform 0.15s ease, box-shadow 0.15s ease",
           }}
+          className="hover:bg-[#2573e0] active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#3688f5]"
         >
           <span>Buat Jadwal +</span>
         </button>
@@ -304,5 +297,30 @@ export default function JadwalPage() {
       {/* Navigasi Bawah */}
       <BottomNav />
     </div>
+  );
+}
+
+export default function JadwalPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            backgroundColor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#64748b",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          Memuat jadwal...
+        </div>
+      }
+    >
+      <JadwalContent />
+    </Suspense>
   );
 }

@@ -12,7 +12,6 @@ export default function AgendaSummaryCard({
         borderRadius: "20px",
         background: "linear-gradient(135deg, #3688f5 0%, #1c68d4 100%)",
         color: "#ffffff",
-        padding: "20px",
         boxSizing: "border-box",
         boxShadow: "0 8px 24px rgba(54, 136, 245, 0.28)",
         display: "flex",
@@ -20,6 +19,7 @@ export default function AgendaSummaryCard({
         position: "relative",
         overflow: "hidden",
       }}
+      className="p-5 sm:p-6 lg:p-7 rounded-[22px]"
     >
       {/* Aksen lingkaran abstrak lembut di latar belakang kartu */}
       <div
@@ -28,8 +28,8 @@ export default function AgendaSummaryCard({
           position: "absolute",
           top: "-30px",
           right: "-30px",
-          width: "130px",
-          height: "130px",
+          width: "140px",
+          height: "140px",
           borderRadius: "50%",
           backgroundColor: "rgba(255, 255, 255, 0.08)",
           pointerEvents: "none",
@@ -41,8 +41,8 @@ export default function AgendaSummaryCard({
           position: "absolute",
           bottom: "-40px",
           left: "20px",
-          width: "100px",
-          height: "100px",
+          width: "110px",
+          height: "110px",
           borderRadius: "50%",
           backgroundColor: "rgba(255, 255, 255, 0.05)",
           pointerEvents: "none",
@@ -61,11 +61,11 @@ export default function AgendaSummaryCard({
       >
         <span
           style={{
-            fontSize: "14px",
             fontWeight: 600,
-            color: "rgba(255, 255, 255, 0.92)",
+            color: "rgba(255, 255, 255, 0.95)",
             letterSpacing: "0.2px",
           }}
+          className="text-sm sm:text-base font-semibold"
         >
           Agenda Hari ini
         </span>
@@ -114,7 +114,7 @@ export default function AgendaSummaryCard({
         style={{
           display: "flex",
           alignItems: "baseline",
-          gap: "8px",
+          gap: "10px",
           margin: "12px 0 6px",
           position: "relative",
           zIndex: 1,
@@ -122,20 +122,20 @@ export default function AgendaSummaryCard({
       >
         <span
           style={{
-            fontSize: "40px",
             fontWeight: 800,
             lineHeight: 1,
             letterSpacing: "-0.5px",
           }}
+          className="text-4xl sm:text-5xl font-extrabold"
         >
           {jumlahHariIni}
         </span>
         <span
           style={{
-            fontSize: "14px",
             fontWeight: 600,
             color: "rgba(255, 255, 255, 0.95)",
           }}
+          className="text-sm sm:text-base font-semibold"
         >
           Kegiatan Terjadwal
         </span>
@@ -145,13 +145,13 @@ export default function AgendaSummaryCard({
       <p
         style={{
           margin: 0,
-          fontSize: "12px",
           fontWeight: 500,
-          color: "rgba(255, 255, 255, 0.85)",
+          color: "rgba(255, 255, 255, 0.88)",
           lineHeight: 1.4,
           position: "relative",
           zIndex: 1,
         }}
+        className="text-xs sm:text-sm font-medium"
       >
         Tetap semangat, jadwal kamu produktif!
       </p>

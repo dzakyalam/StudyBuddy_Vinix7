@@ -1,0 +1,88 @@
+/* app/jadwal/jadwal.css */
+@import "tailwindcss";
+
+/* Gaya Responsif Khusus Halaman Jadwal */
+.jadwal-page-shell {
+  width: 100%;
+  min-height: 100vh;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.jadwal-container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 1.25rem;
+  padding-bottom: 9rem; /* Ruang aman luas agar kartu terakhir tidak tertutup tombol mengambang / bottom nav */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* Breakpoint Mobile / Tablet / Desktop */
+@media (min-width: 640px) {
+  .jadwal-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .jadwal-container {
+    max-width: 48rem; /* ~768px */
+    padding-top: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .jadwal-container {
+    max-width: 72rem; /* max-w-6xl: 1152px */
+    padding-left: 2rem;
+    padding-right: 2rem;
+    padding-top: 2rem;
+    padding-bottom: 7.5rem;
+  }
+}
+
+/* Grid Agenda: 1 kolom di mobile & tablet, 2 kolom di laptop/desktop (>= 1024px) */
+.jadwal-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .jadwal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+/* Tombol Floating Buat Jadwal: Menempel di kanan bawah tanpa menutupi kartu */
+.jadwal-floating-btn-wrap {
+  position: fixed;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  right: 1rem;
+  z-index: 45;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .jadwal-floating-btn-wrap {
+    right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .jadwal-floating-btn-wrap {
+    right: 2rem;
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  }
+}

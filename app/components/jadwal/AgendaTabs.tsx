@@ -23,9 +23,9 @@ export default function AgendaTabs({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: "8px",
+        gap: "10px",
         marginTop: "20px",
-        marginBottom: "16px",
+        marginBottom: "18px",
         width: "100%",
         boxSizing: "border-box",
       }}
@@ -51,7 +51,7 @@ export default function AgendaTabs({
               style={{
                 minHeight: "44px",
                 minWidth: "44px",
-                padding: "8px 18px",
+                padding: "8px 20px",
                 borderRadius: "9999px",
                 fontSize: "13px",
                 fontWeight: isActive ? 700 : 600,
@@ -67,6 +67,7 @@ export default function AgendaTabs({
                 alignItems: "center",
                 justifyContent: "center",
               }}
+              className="hover:opacity-90 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#3688f5]"
             >
               {tab}
             </button>
@@ -92,9 +93,10 @@ export default function AgendaTabs({
           alignItems: "center",
           justifyContent: "center",
           cursor: "pointer",
-          transition: "background-color 0.15s ease, color 0.15s ease",
+          transition: "all 0.15s ease",
           padding: 0,
         }}
+        className="hover:bg-[#e2e8f0] active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#3688f5]"
       >
         <svg
           width="20"

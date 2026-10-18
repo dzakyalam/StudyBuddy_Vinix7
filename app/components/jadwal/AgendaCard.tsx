@@ -5,9 +5,10 @@ import { type Agenda, isHariIni, isBesok } from "@/app/lib/mock-data";
 
 export interface AgendaCardProps {
   agenda: Agenda;
+  onClick?: (agenda: Agenda) => void;
 }
 
-export default function AgendaCard({ agenda }: AgendaCardProps) {
+export default function AgendaCard({ agenda, onClick }: AgendaCardProps) {
   // Hitung badge dari tanggal agenda
   const badgeText = useMemo(() => {
     if (isHariIni(agenda.tanggal)) {
@@ -91,6 +92,16 @@ export default function AgendaCard({ agenda }: AgendaCardProps) {
 
   return (
     <article
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={() => onClick?.(agenda)}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick(agenda);
+        }
+      }}
+      aria-label={onClick ? `Ubah agenda ${agenda.judul}` : undefined}
       style={{
         backgroundColor: "#ffffff",
         borderRadius: "18px",
@@ -100,7 +111,9 @@ export default function AgendaCard({ agenda }: AgendaCardProps) {
         boxShadow: "0 2px 10px rgba(38, 53, 75, 0.04)",
         display: "flex",
         flexDirection: "column",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+        transition: "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
+        cursor: onClick ? "pointer" : "default",
+        outline: "none",
       }}
     >
       {/* Baris Atas: Ikon Kotak Biru Muda, Kategori, Judul & Badge Biru */}

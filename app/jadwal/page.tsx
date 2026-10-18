@@ -6,6 +6,7 @@ import BottomNav from "@/app/components/room/BottomNav";
 import AgendaSummaryCard from "@/app/components/jadwal/AgendaSummaryCard";
 import AgendaTabs, { type AgendaTab } from "@/app/components/jadwal/AgendaTabs";
 import AgendaCard from "@/app/components/jadwal/AgendaCard";
+import AgendaFormSheet from "@/app/components/jadwal/AgendaFormSheet";
 import {
   agendas as initialAgendas,
   penggunaAktif,
@@ -30,8 +31,10 @@ function getFormattedToday(): string {
 }
 
 export default function JadwalPage() {
-  const [daftarAgenda] = useState<Agenda[]>(initialAgendas);
+  const [daftarAgenda, setDaftarAgenda] = useState<Agenda[]>(initialAgendas);
   const [activeTab, setActiveTab] = useState<AgendaTab>("Semua");
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [agendaToEdit, setAgendaToEdit] = useState<Agenda | null>(null);
 
   const tanggalHariIni = useMemo(() => getFormattedToday(), []);
 
@@ -59,6 +62,30 @@ export default function JadwalPage() {
     }
     return agendaTerurut;
   }, [agendaTerurut, activeTab]);
+
+  function handleOpenCreateForm() {
+    setAgendaToEdit(null);
+    setIsFormOpen(true);
+  }
+
+  function handleEditAgenda(agenda: Agenda) {
+    setAgendaToEdit(agenda);
+    setIsFormOpen(true);
+  }
+
+  function handleSaveAgenda(agenda: Agenda) {
+    setDaftarAgenda((prev) => {
+      const exists = prev.some((item) => item.id === agenda.id);
+      if (exists) {
+        return prev.map((item) => (item.id === agenda.id ? agenda : item));
+      }
+      return [agenda, ...prev];
+    });
+  }
+
+  function handleDeleteAgenda(id: string) {
+    setDaftarAgenda((prev) => prev.filter((item) => item.id !== id));
+  }
 
   return (
     <div
@@ -141,7 +168,11 @@ export default function JadwalPage() {
               }}
             >
               {agendaDitampilkan.map((agenda) => (
-                <AgendaCard key={agenda.id} agenda={agenda} />
+                <AgendaCard
+                  key={agenda.id}
+                  agenda={agenda}
+                  onClick={handleEditAgenda}
+                />
               ))}
             </div>
           ) : (
@@ -234,7 +265,8 @@ export default function JadwalPage() {
       >
         <button
           type="button"
-          aria-label="Buat Jadwal"
+          onClick={handleOpenCreateForm}
+          aria-label="Buat Jadwal Baru"
           style={{
             pointerEvents: "auto",
             backgroundColor: "#3688f5",
@@ -256,6 +288,18 @@ export default function JadwalPage() {
           <span>Buat Jadwal +</span>
         </button>
       </div>
+
+      {/* Bottom Sheet Form Agenda (Buat & Ubah) */}
+      <AgendaFormSheet
+        isOpen={isFormOpen}
+        onClose={() => {
+          setIsFormOpen(false);
+          setAgendaToEdit(null);
+        }}
+        agendaToEdit={agendaToEdit}
+        onSaveAgenda={handleSaveAgenda}
+        onDeleteAgenda={handleDeleteAgenda}
+      />
 
       {/* Navigasi Bawah */}
       <BottomNav />

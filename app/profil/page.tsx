@@ -66,7 +66,7 @@ export default function ProfilPage() {
     }
 
     // Profil belum disimpan ke database.
-    router.push("/home");
+    router.push("/privasi");
   }
 
   return (

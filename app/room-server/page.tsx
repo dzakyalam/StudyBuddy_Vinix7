@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Header from "@/app/components/room/Header";
 import BottomNav from "@/app/components/room/BottomNav";
 import RoomCard from "@/app/components/room/RoomCard";
+import CreateRoomSheet from "@/app/components/room/CreateRoomSheet";
 import {
   rooms as initialRooms,
   kategoriContoh,
@@ -11,10 +12,15 @@ import {
 } from "@/app/lib/mock-data";
 
 export default function RoomServerPage() {
-  const [daftarRoom] = useState<Room[]>(initialRooms);
+  const [daftarRoom, setDaftarRoom] = useState<Room[]>(initialRooms);
   const [kataKunci, setKataKunci] = useState<string>("");
   const [kategoriDipilih, setKategoriDipilih] = useState<string>("");
   const [bukaDropdown, setBukaDropdown] = useState<boolean>(false);
+  const [bukaSheetBuatRoom, setBukaSheetBuatRoom] = useState<boolean>(false);
+
+  function handleCreateRoom(newRoom: Room) {
+    setDaftarRoom((prev) => [newRoom, ...prev]);
+  }
 
   // Filter daftar room berdasarkan pencarian (nama atau kode) dan kategori
   const roomTerfilter = useMemo(() => {
@@ -283,9 +289,7 @@ export default function RoomServerPage() {
           <button
             type="button"
             aria-label="Buat Room Belajar"
-            onClick={() => {
-              // Belum berfungsi, akan dibuat pada langkah berikutnya
-            }}
+            onClick={() => setBukaSheetBuatRoom(true)}
             style={{
               minHeight: "44px",
               padding: "0 14px",
@@ -351,6 +355,13 @@ export default function RoomServerPage() {
           )}
         </section>
       </main>
+
+      {/* Sheet Pembuatan Room Baru */}
+      <CreateRoomSheet
+        isOpen={bukaSheetBuatRoom}
+        onClose={() => setBukaSheetBuatRoom(false)}
+        onCreateRoom={handleCreateRoom}
+      />
 
       {/* Navigasi Bawah */}
       <BottomNav />

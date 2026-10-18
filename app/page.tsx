@@ -166,7 +166,7 @@ export default function LandingPage() {
           Bergabung dengan StudyBuddy dan berkembang
           bersama teman-temanmu.
         </p>
-        <Link href="/login" className="btn btn-white btn-large">
+        <Link href="/registrasi" className="btn btn-white btn-large">
           Gabung StudyBuddy →
         </Link>
       </section>

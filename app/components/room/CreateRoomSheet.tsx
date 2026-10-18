@@ -103,49 +103,19 @@ export default function CreateRoomSheet({
       role="dialog"
       aria-modal="true"
       aria-labelledby="sheet-title"
+      className="create-room-overlay"
       onClick={(e) => {
         // Tutup jika mengetuk area overlay gelap
         if (e.target === e.currentTarget) {
           handleClose();
         }
       }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        backgroundColor: "rgba(15, 23, 42, 0.45)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-      }}
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "430px",
-          borderTopLeftRadius: "24px",
-          borderTopRightRadius: "24px",
-          background:
-            "linear-gradient(180deg, #edf5ff 0%, #ffffff 75px), #ffffff",
-          backgroundColor: "#ffffff",
-          boxShadow: "0 -8px 30px rgba(0, 0, 0, 0.12)",
-          padding: "12px 20px calc(24px + env(safe-area-inset-bottom, 0px))",
-          boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
-          animation: "slideUp 0.22s ease-out",
-        }}
-      >
-        {/* Handle kecil di tengah atas */}
+      <div className="create-room-modal">
+        {/* Handle kecil di tengah atas (hanya mobile, disembunyikan pada >=640px) */}
         <div
           aria-hidden="true"
-          style={{
-            width: "38px",
-            height: "4px",
-            borderRadius: "2px",
-            backgroundColor: "#c5d5e8",
-            margin: "0 auto 12px",
-          }}
+          className="create-room-handle"
         />
 
         {/* Judul Sheet */}

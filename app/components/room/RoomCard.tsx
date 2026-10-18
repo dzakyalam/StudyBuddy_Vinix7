@@ -1,14 +1,41 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { Room } from "@/app/lib/mock-data";
+import { getRoomParticipantCount } from "@/app/lib/room-store";
 
 export interface RoomCardProps {
   room: Room;
 }
 
 export default function RoomCard({ room }: RoomCardProps) {
-  const isPenuh = room.peserta >= room.kapasitas;
+  // Baca jumlah peserta dari store yang sama (localStorage dengan fallback ke room.peserta)
+  const [jumlahPeserta, setJumlahPeserta] = useState<number>(() => {
+    return getRoomParticipantCount(room.id, room.peserta);
+  });
+
+  // Sinkronisasi otomatis saat ada peserta masuk/keluar di room ini
+  useEffect(() => {
+    function handleUpdate(e: Event) {
+      const customEvent = e as CustomEvent<{ roomId: string; count: number }>;
+      if (customEvent.detail && customEvent.detail.roomId === room.id) {
+        setJumlahPeserta(customEvent.detail.count);
+      } else {
+        setJumlahPeserta(getRoomParticipantCount(room.id, room.peserta));
+      }
+    }
+
+    window.addEventListener("studybuddy_room_update", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+
+    return () => {
+      window.removeEventListener("studybuddy_room_update", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, [room.id, room.peserta]);
+
+  const isPenuh = jumlahPeserta >= room.kapasitas;
 
   // Inisial 2 karakter dari nama room (contoh: "UI/UX Design" -> "UI", "Cyber Security" -> "CS")
   const inisial = room.nama
@@ -134,7 +161,7 @@ export default function RoomCard({ room }: RoomCardProps) {
             <circle cx="12" cy="7" r="4" />
           </svg>
           <span>
-            {room.peserta}/{room.kapasitas}
+            {jumlahPeserta}/{room.kapasitas}
           </span>
         </div>
 

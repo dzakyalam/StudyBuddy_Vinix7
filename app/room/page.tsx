@@ -1,29 +1,156 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import StageView from "@/app/components/room/StageView";
 import ParticipantTile from "@/app/components/room/ParticipantTile";
 import ControlBar from "@/app/components/room/ControlBar";
 import ChatPanel from "@/app/components/room/ChatPanel";
+import JoinRoomSheet from "@/app/components/room/JoinRoomSheet";
+import LeaveConfirmDialog from "@/app/components/room/LeaveConfirmDialog";
 import { useRoomMedia } from "@/app/components/room/useRoomMedia";
-import { rooms, members, penggunaAktif } from "@/app/lib/mock-data";
+import { rooms, penggunaAktif, type Member } from "@/app/lib/mock-data";
+import {
+  getRoomParticipants,
+  addParticipantToRoom,
+  removeParticipantFromRoom,
+  setupRoomPresence,
+} from "@/app/lib/room-store";
 
 function RoomContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
-  const [bukaChat, setBukaChat] = useState<boolean>(false);
-
-  // Hook manajemen media lokal (mikrofon, kamera, share screen, screenshot, audio analyser)
-  const media = useRoomMedia();
 
   // Cari room berdasarkan id atau kode
   const room = rooms.find((r) => r.id === id || r.kode === id);
 
-  // Sumber data peserta (satu sumber data untuk header dan judul daftar)
-  const daftarPeserta = members;
+  // Status bergabung ke room (sebelum gabung, tampilkan sheet 'Siap bergabung?')
+  const [sudahGabung, setSudahGabung] = useState(false);
+  const [bukaChat, setBukaChat] = useState(false);
+  const [bukaDialogKeluar, setBukaDialogKeluar] = useState(false);
+
+  // Sumber data peserta untuk room ini dari room-store
+  const [daftarPeserta, setDaftarPeserta] = useState<Member[]>(() => {
+    if (!room) return [];
+    return getRoomParticipants(room.id);
+  });
+
+  // Hook manajemen media lokal
+  const media = useRoomMedia();
+
+  // Sinkronisasi peserta room dari localStorage & presence
+  useEffect(() => {
+    if (!room) return;
+
+    function handleLocalUpdate(e: Event) {
+      const customEvent = e as CustomEvent<{ roomId: string; participants: Member[] }>;
+      if (customEvent.detail && customEvent.detail.roomId === room?.id) {
+        setDaftarPeserta(customEvent.detail.participants);
+      }
+    }
+
+    window.addEventListener("studybuddy_room_update", handleLocalUpdate);
+
+    return () => {
+      window.removeEventListener("studybuddy_room_update", handleLocalUpdate);
+    };
+  }, [room]);
+
+  // Alur Masuk (Gabung Room)
+  const handleJoinRoom = useCallback(
+    async (micState: boolean, camState: boolean) => {
+      if (!room) return;
+
+      const myMember: Member = {
+        id: penggunaAktif.id,
+        nama: penggunaAktif.nama,
+        inisial: penggunaAktif.nama[0]?.toUpperCase() || "Z",
+        warnaAvatar: "#3688F5",
+        micOn: micState,
+        camOn: camState,
+        speaking: false,
+      };
+
+      // Tambahkan saya ke peserta room di store & localStorage
+      const updatedList = addParticipantToRoom(room.id, myMember);
+      setDaftarPeserta(updatedList);
+      setSudahGabung(true);
+
+      // Toast: "<nama> bergabung"
+      media.showToast(`${penggunaAktif.nama} bergabung`);
+
+      // Nyalakan mic/kamera jika dipilih aktif pada sheet pra-gabung
+      if (micState) {
+        await media.toggleMic();
+      }
+      if (camState) {
+        await media.toggleCam();
+      }
+    },
+    [room, media]
+  );
+
+  // Alur Keluar (Leave Room)
+  const handleLeaveRoom = useCallback(() => {
+    if (!room) return;
+
+    // Hentikan media jika masih menyala
+    if (media.isCamOn) media.toggleCam();
+    if (media.isScreenSharing) media.toggleScreenShare();
+
+    // Hapus saya dari peserta di store
+    removeParticipantFromRoom(room.id, penggunaAktif.id);
+
+    setBukaDialogKeluar(false);
+    setSudahGabung(false);
+
+    // Navigasi kembali ke /room-server
+    router.push("/room-server");
+  }, [room, media, router]);
+
+  // Tangani pagehide dan pembersihan saat keluar dari browser/tab
+  useEffect(() => {
+    if (!room || !sudahGabung) return;
+
+    const handlePageHide = () => {
+      removeParticipantFromRoom(room.id, penggunaAktif.id);
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [room, sudahGabung]);
+
+  // Presence antar-tab dengan BroadcastChannel ("studybuddy-room-<id>")
+  useEffect(() => {
+    if (!room || !sudahGabung) return;
+
+    const myMember: Member = {
+      id: penggunaAktif.id,
+      nama: penggunaAktif.nama,
+      inisial: penggunaAktif.nama[0]?.toUpperCase() || "Z",
+      warnaAvatar: "#3688F5",
+      micOn: media.isMicOn,
+      camOn: media.isCamOn,
+      speaking: media.isSpeaking,
+    };
+
+    const cleanupPresence = setupRoomPresence(
+      room.id,
+      myMember,
+      (updatedList) => {
+        setDaftarPeserta(updatedList);
+      }
+    );
+
+    return () => {
+      cleanupPresence();
+    };
+  }, [room, sudahGabung, media.isMicOn, media.isCamOn, media.isSpeaking]);
 
   // Jika room tidak ditemukan, tampilkan pesan error + tombol kembali
   if (!room) {
@@ -117,7 +244,7 @@ function RoomContent() {
     );
   }
 
-  // Presenter yang sedang berbagi layar (misal anggota pertama atau jika screen share lokal)
+  // Presenter layar
   const presenter = daftarPeserta[0]?.nama || "Max Zul";
 
   return (
@@ -179,7 +306,7 @@ function RoomContent() {
           boxSizing: "border-box",
         }}
       >
-        {/* Sisi Kiri: Tombol Kembali + Judul & Subjudul */}
+        {/* Sisi Kiri: Tombol Kembali (memicu konfirmasi keluar) + Judul & Subjudul */}
         <div
           style={{
             display: "flex",
@@ -191,7 +318,13 @@ function RoomContent() {
         >
           <button
             type="button"
-            onClick={() => router.push("/room-server")}
+            onClick={() => {
+              if (sudahGabung) {
+                setBukaDialogKeluar(true);
+              } else {
+                router.push("/room-server");
+              }
+            }}
             aria-label="Kembali ke Room Server"
             style={{
               width: "44px",
@@ -296,7 +429,6 @@ function RoomContent() {
               boxShadow: "0 2px 8px rgba(54, 136, 245, 0.25)",
             }}
           >
-            {/* Ikon Tiga Titik Menu */}
             <svg
               width="16"
               height="16"
@@ -326,13 +458,13 @@ function RoomContent() {
           boxSizing: "border-box",
         }}
       >
-        {/* Label "Screen" dan Panggung Rounded Besar (Mendukung Share Screen) */}
+        {/* Label "Screen" dan Panggung Rounded Besar */}
         <StageView
           presenterName={presenter}
           screenStream={media.screenStream}
         />
 
-        {/* Daftar Peserta */}
+        {/* Daftar Peserta (N dihitung dari array peserta) */}
         <section aria-label="Daftar Peserta Room">
           <h2
             style={{
@@ -382,6 +514,23 @@ function RoomContent() {
         onToggleScreenShare={media.toggleScreenShare}
         onCaptureScreenshot={media.captureScreenshot}
         onOpenChat={() => setBukaChat(true)}
+        onLeaveClick={() => setBukaDialogKeluar(true)}
+      />
+
+      {/* Bottom Sheet "Siap bergabung?" sebelum masuk live room */}
+      <JoinRoomSheet
+        isOpen={!sudahGabung}
+        room={room}
+        currentParticipants={daftarPeserta}
+        onJoin={handleJoinRoom}
+        onCancel={() => router.push("/room-server")}
+      />
+
+      {/* Dialog Konfirmasi "Keluar dari room?" */}
+      <LeaveConfirmDialog
+        isOpen={bukaDialogKeluar}
+        onConfirm={handleLeaveRoom}
+        onCancel={() => setBukaDialogKeluar(false)}
       />
 
       {/* Panel Obrolan (Chat Bottom Sheet) */}

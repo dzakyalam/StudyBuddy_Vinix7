@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 
-export default function ControlBar() {
+export interface ControlBarProps {
+  onOpenChat?: () => void;
+}
+
+export default function ControlBar({ onOpenChat }: ControlBarProps = {}) {
   return (
     <aside
       aria-label="Panel Kontrol Panggilan"
@@ -184,6 +188,7 @@ export default function ControlBar() {
         {/* 5. Tombol Chat (Biru) */}
         <button
           type="button"
+          onClick={onOpenChat}
           aria-label="Chat"
           style={{
             width: "44px",

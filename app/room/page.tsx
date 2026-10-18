@@ -1,17 +1,19 @@
 "use client";
 
-import { Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import StageView from "@/app/components/room/StageView";
 import ParticipantTile from "@/app/components/room/ParticipantTile";
 import ControlBar from "@/app/components/room/ControlBar";
+import ChatPanel from "@/app/components/room/ChatPanel";
 import { rooms, members } from "@/app/lib/mock-data";
 
 function RoomContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
+  const [bukaChat, setBukaChat] = useState<boolean>(false);
 
   // Cari room berdasarkan id atau kode
   const room = rooms.find((r) => r.id === id || r.kode === id);
@@ -323,7 +325,13 @@ function RoomContent() {
       </main>
 
       {/* Panel Kontrol di Bagian Bawah */}
-      <ControlBar />
+      <ControlBar onOpenChat={() => setBukaChat(true)} />
+
+      {/* Panel Obrolan (Chat Bottom Sheet) */}
+      <ChatPanel
+        isOpen={bukaChat}
+        onClose={() => setBukaChat(false)}
+      />
     </div>
   );
 }

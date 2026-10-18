@@ -1,50 +1,46 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { Room } from "@/app/lib/mock-data";
-import { getRoomParticipantCount } from "@/app/lib/room-store";
+import { useRoomParticipantCount } from "@/app/lib/room-store";
 
 export interface RoomCardProps {
   room: Room;
 }
 
 export default function RoomCard({ room }: RoomCardProps) {
-  // Baca jumlah peserta dari store yang sama (localStorage dengan fallback ke room.peserta)
-  const [jumlahPeserta, setJumlahPeserta] = useState<number>(() => {
-    return getRoomParticipantCount(room.id, room.peserta);
-  });
+  // Parsing defensif untuk mencegah runtime error jika ada data tersimpan yang tidak lengkap
+  const roomId = room?.id || "";
+  const roomNama =
+    room?.nama ||
+    (room as unknown as { title?: string })?.title ||
+    (room as unknown as { name?: string })?.name ||
+    "Room Belajar";
+  const roomKategori =
+    room?.kategori ||
+    (room as unknown as { category?: string })?.category ||
+    "";
+  const roomPeserta =
+    typeof room?.peserta === "number" ? room.peserta : 1;
+  const roomKapasitas =
+    typeof room?.kapasitas === "number"
+      ? room.kapasitas
+      : typeof (room as unknown as { maxParticipants?: number })?.maxParticipants === "number"
+      ? (room as unknown as { maxParticipants: number }).maxParticipants
+      : 50;
 
-  // Sinkronisasi otomatis saat ada peserta masuk/keluar di room ini
-  useEffect(() => {
-    function handleUpdate(e: Event) {
-      const customEvent = e as CustomEvent<{ roomId: string; count: number }>;
-      if (customEvent.detail && customEvent.detail.roomId === room.id) {
-        setJumlahPeserta(customEvent.detail.count);
-      } else {
-        setJumlahPeserta(getRoomParticipantCount(room.id, room.peserta));
-      }
-    }
+  // Gunakan hook reaktif terpusat yang aman hydration dan bebas cascading renders
+  const jumlahPeserta = useRoomParticipantCount(roomId, roomPeserta);
 
-    window.addEventListener("studybuddy_room_update", handleUpdate);
-    window.addEventListener("storage", handleUpdate);
-
-    return () => {
-      window.removeEventListener("studybuddy_room_update", handleUpdate);
-      window.removeEventListener("storage", handleUpdate);
-    };
-  }, [room.id, room.peserta]);
-
-  const isPenuh = jumlahPeserta >= room.kapasitas;
+  const isPenuh = jumlahPeserta >= roomKapasitas;
 
   // Inisial 2 karakter dari nama room (contoh: "UI/UX Design" -> "UI", "Cyber Security" -> "CS")
-  const inisial = room.nama
+  const inisial = (roomNama || "RB")
     .split(/[\s/]+/)
     .filter(Boolean)
     .map((kata) => kata[0])
     .slice(0, 2)
     .join("")
-    .toUpperCase();
+    .toUpperCase() || "RB";
+
 
   return (
     <article
@@ -103,7 +99,7 @@ export default function RoomCard({ room }: RoomCardProps) {
         {/* Bagian Tengah: Nama Room & Teks "Live" Merah */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2
-            title={room.nama}
+            title={roomNama}
             style={{
               fontSize: "15px",
               fontWeight: 700,
@@ -115,7 +111,7 @@ export default function RoomCard({ room }: RoomCardProps) {
             }}
             className="text-sm md:text-base font-bold text-[#26354b]"
           >
-            {room.nama}
+            {roomNama}
           </h2>
 
           <div
@@ -138,7 +134,7 @@ export default function RoomCard({ room }: RoomCardProps) {
               }}
             />
             <span>Live</span>
-            {room.kategori && (
+            {roomKategori && (
               <>
                 <span style={{ color: "#cbd5e1" }}>•</span>
                 <span
@@ -148,7 +144,7 @@ export default function RoomCard({ room }: RoomCardProps) {
                     fontSize: "11px",
                   }}
                 >
-                  {room.kategori}
+                  {roomKategori}
                 </span>
               </>
             )}
@@ -194,7 +190,7 @@ export default function RoomCard({ room }: RoomCardProps) {
             <circle cx="12" cy="7" r="4" />
           </svg>
           <span>
-            {jumlahPeserta}/{room.kapasitas}
+            {jumlahPeserta}/{roomKapasitas}
           </span>
         </div>
 
@@ -203,7 +199,7 @@ export default function RoomCard({ room }: RoomCardProps) {
           <button
             type="button"
             disabled
-            aria-label={`Room ${room.nama} sudah penuh`}
+            aria-label={`Room ${roomNama} sudah penuh`}
             style={{
               minWidth: "68px",
               minHeight: "44px",
@@ -224,8 +220,8 @@ export default function RoomCard({ room }: RoomCardProps) {
           </button>
         ) : (
           <Link
-            href={`/room?id=${room.id}`}
-            aria-label={`Gabung room ${room.nama}`}
+            href={`/room?id=${roomId}`}
+            aria-label={`Gabung room ${roomNama}`}
             style={{
               minWidth: "68px",
               minHeight: "44px",
@@ -246,6 +242,7 @@ export default function RoomCard({ room }: RoomCardProps) {
             Join
           </Link>
         )}
+
       </div>
     </article>
   );

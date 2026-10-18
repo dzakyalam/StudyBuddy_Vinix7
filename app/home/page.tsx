@@ -57,14 +57,6 @@ const discussions: Discussion[] = [
   },
 ];
 
-const navigation = [
-  { label: "Home", icon: "/images/Home.png" },
-  { label: "Chat", icon: "/images/chat.png" },
-  { label: "Room Server", icon: "/images/room server.png" },
-  { label: "Jadwal", icon: "/images/logo jadwal.png" },
-  { label: "Profil", icon: "/images/Profile.png" },
-];
-
 export default function HomePage() {
   const [discussionIndex, setDiscussionIndex] = useState(0);
   const [joined, setJoined] = useState<string[]>([]);
@@ -386,32 +378,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <nav className="bottom-nav">
-        {navigation.map((item) => (
-          <button
-            key={item.label}
-            className={`bottom-nav-item ${
-              activeTab === item.label ? "selected" : ""
-            }`}
-            onClick={() => {
-              setActiveTab(item.label);
-
-              if (item.label === "Profil") {
-                window.location.href = "/login";
-              }
-            }}
-          >
-            <Image
-              src={item.icon}
-              alt={item.label}
-              width={24}
-              height={24}
-              className="bottom-nav-icon"
-            />
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
+      <Navbar />
     </main>
   );
 }

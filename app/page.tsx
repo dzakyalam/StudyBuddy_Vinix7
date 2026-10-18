@@ -23,7 +23,7 @@ export default function LandingPage() {
           <Link href="/login" className="btn btn-outline">
             Masuk
           </Link>
-          <Link href="/login" className="btn btn-primary">
+          <Link href="/registrasi" className="btn btn-primary">
             Gabung Sekarang
           </Link>
         </div>

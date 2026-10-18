@@ -54,7 +54,6 @@ const discussions: Discussion[] = [
   },
 ];
 
-
 const navigation = [
   { label: "Home", icon: "/images/Home.png" },
   { label: "Chat", icon: "/images/chat.png" },
@@ -97,7 +96,7 @@ export default function HomePage() {
 
   return (
     <main className="app-shell">
-      {/* Header dengan Logo Baru */}
+      {/* Header dengan Logo & Tombol Aksi yang Diperbarui */}
       <header className="home-header">
         <a href="/home" className="brand home-brand flex items-center gap-2">
           <Image
@@ -113,20 +112,35 @@ export default function HomePage() {
           </span>
         </a>
 
-        <div className="header-actions">
+        <div className="header-actions flex items-center gap-2">
+          {/* Tombol Buat Grup (Menggunakan gambar tambah grup.jpg) */}
           <button
-            className="icon-button"
+            className="icon-button flex items-center justify-center"
             aria-label="Buat grup"
             onClick={() => setShowGroupForm(true)}
           >
-            👥
+            <Image
+              src="/images/tambah grup.jpg"
+              alt="Tambah Grup"
+              width={22}
+              height={22}
+              className="object-contain"
+            />
           </button>
+
+          {/* Tombol Notifikasi */}
           <button
-            className="icon-button"
+            className="icon-button flex items-center justify-center"
             aria-label="Notifikasi"
             onClick={() => alert("Belum ada notifikasi baru.")}
           >
-            ♧
+            <Image
+              src="/images/Notification.png"
+              alt="Notifikasi"
+              width={22}
+              height={22}
+              className="object-contain"
+            />
           </button>
         </div>
       </header>
@@ -332,34 +346,32 @@ export default function HomePage() {
         </div>
       )}
 
+      <nav className="bottom-nav">
+        {navigation.map((item) => (
+          <button
+            key={item.label}
+            className={`bottom-nav-item ${
+              activeTab === item.label ? "selected" : ""
+            }`}
+            onClick={() => {
+              setActiveTab(item.label);
 
-<nav className="bottom-nav">
-  {navigation.map((item) => (
-    <button
-      key={item.label}
-      className={`bottom-nav-item ${
-        activeTab === item.label ? "selected" : ""
-      }`}
-      onClick={() => {
-        setActiveTab(item.label);
-
-        if (item.label === "Profil") {
-          window.location.href = "/login";
-        }
-      }}
-    >
-      <Image
-        src={item.icon}
-        alt={item.label}
-        width={24}
-        height={24}
-        className="bottom-nav-icon"
-      />
-      <span>{item.label}</span>
-    </button>
-  ))}
-</nav>
-
+              if (item.label === "Profil") {
+                window.location.href = "/login";
+              }
+            }}
+          >
+            <Image
+              src={item.icon}
+              alt={item.label}
+              width={24}
+              height={24}
+              className="bottom-nav-icon"
+            />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </main>
   );
 }

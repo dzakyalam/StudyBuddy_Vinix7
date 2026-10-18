@@ -30,8 +30,8 @@ export default function LoginPage() {
         <Image
           src="/images/logo study buddy 2.png"
           alt="Study Buddy Logo"
-          width={40}
-          height={40}
+          width={100}
+          height={80}
           className="object-contain"
         />
         <span className="font-bold text-xl">StudyBuddy</span>
@@ -44,8 +44,8 @@ export default function LoginPage() {
             <Image
               src="/images/logo study buddy 2.png"
               alt="Study Buddy Logo"
-              width={80}
-              height={80}
+              width={100}
+              height={90}
               className="object-contain"
             />
           </div>
@@ -83,7 +83,7 @@ export default function LoginPage() {
 
             <button
               type="button"
-              className="password-toggle"
+              className="password-toggle flex items-center justify-center"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={
                 showPassword
@@ -91,7 +91,23 @@ export default function LoginPage() {
                   : "Tampilkan password"
               }
             >
-              {showPassword ? "🙈" : "👁"}
+              {showPassword ? (
+                <Image
+                  src="/images/sembunyikan passwoard.jpg"
+                  alt="Sembunyikan Password"
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                />
+              ) : (
+                <Image
+                  src="/images/perlihat passwoard.jpg"
+                  alt="Perlihatkan Password"
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                />
+              )}
             </button>
           </div>
 

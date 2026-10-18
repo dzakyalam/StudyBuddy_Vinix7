@@ -1,0 +1,58 @@
+/* ===========================================================
+   NAVBAR (bottom navigation)
+   Disamakan dengan navbar halaman /home (.bottom-nav di globals.css)
+   supaya konsisten di seluruh halaman.
+   =========================================================== */
+
+.bottomNav {
+  position: fixed;
+  z-index: 10;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 1100px);
+  min-height: 70px;
+  padding: 8px 15px;
+  background: #ffffffed;
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.navItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: #78869a;
+  font-size: 10px;
+  text-decoration: none;
+}
+
+.navItem.selected {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.navIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+@media (max-width: 420px) {
+  .bottomNav {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .navItem {
+    font-size: 9px;
+  }
+}

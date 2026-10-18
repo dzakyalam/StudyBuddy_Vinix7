@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type MouseEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import Navbar from "@/components/navbar/Navbar";
+import SearchExperience from "@/components/SearchExperience";
 
 type Story = {
   name: string;
@@ -54,7 +57,6 @@ const discussions: Discussion[] = [
   },
 ];
 
-
 const navigation = [
   { label: "Home", icon: "/images/Home.png" },
   { label: "Chat", icon: "/images/chat.png" },
@@ -64,19 +66,38 @@ const navigation = [
 ];
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState("Home");
-  const [search, setSearch] = useState("");
   const [discussionIndex, setDiscussionIndex] = useState(0);
   const [joined, setJoined] = useState<string[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [groupName, setGroupName] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  /** Jarak search box Home ke posisi akhir top bar di view pencarian. */
+  const [searchEnterOffset, setSearchEnterOffset] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const currentDiscussion = discussions[discussionIndex];
 
-  const filteredDiscussions = discussions.filter((item) =>
-    item.title.toLowerCase().includes(search.toLowerCase())
-  );
+  /**
+   * Ukur posisi search box saat ditekan, supaya view pencarian bisa
+   * menganimasikan search box ini "naik" ke atas (bukan pop-up baru).
+   */
+  function openSearch(event: MouseEvent<HTMLButtonElement>) {
+    const box = event.currentTarget.getBoundingClientRect();
+    const content = contentRef.current;
+
+    if (content) {
+      const contentRect = content.getBoundingClientRect();
+      const paddingTop = parseFloat(getComputedStyle(content).paddingTop) || 0;
+      // Jangan dibulatkan: selisih 0.5px saja terlihat sebagai "loncatan"
+      // kecil saat search box mendarat kembali di posisinya.
+      setSearchEnterOffset(
+        Number((box.top - contentRect.top - paddingTop).toFixed(2))
+      );
+    }
+
+    setShowSearch(true);
+  }
 
   function joinDiscussion(title: string) {
     setJoined((previous) =>
@@ -97,14 +118,14 @@ export default function HomePage() {
 
   return (
     <main className="app-shell">
-      {/* Header dengan Logo Baru */}
+      {/* Header dengan Logo & Tombol Aksi yang Diperbarui */}
       <header className="home-header">
         <a href="/home" className="brand home-brand flex items-center gap-2">
           <Image
             src="/images/logo study buddy 2.png"
             alt="Study Buddy Logo"
-            width={36}
-            height={36}
+            width={86}
+            height={70}
             className="object-contain"
           />
           <span>
@@ -113,42 +134,82 @@ export default function HomePage() {
           </span>
         </a>
 
-        <div className="header-actions">
+        <div className="header-actions flex items-center gap-2">
+          {/* Tombol Buat Grup (Menggunakan gambar tambah grup.jpg) */}
           <button
-            className="icon-button"
+            className="icon-button flex items-center justify-center"
             aria-label="Buat grup"
             onClick={() => setShowGroupForm(true)}
           >
-            👥
+            <Image
+              src="/images/tambah grup.jpg"
+              alt="Tambah Grup"
+              width={22}
+              height={22}
+              className="object-contain"
+            />
           </button>
+
+          {/* Tombol Notifikasi */}
           <button
-            className="icon-button"
+            className="icon-button flex items-center justify-center"
             aria-label="Notifikasi"
             onClick={() => alert("Belum ada notifikasi baru.")}
           >
-            ♧
+            <Image
+              src="/images/Notification.png"
+              alt="Notifikasi"
+              width={22}
+              height={22}
+              className="object-contain"
+            />
           </button>
         </div>
       </header>
 
-      <div className="home-content">
-        <div className="greeting">
+      <div className="home-content" ref={contentRef}>
+        {showSearch ? (
+          <SearchExperience
+            enterOffset={searchEnterOffset}
+            onClose={() => setShowSearch(false)}
+          />
+        ) : (
+          <>
+        <div className="greeting home-reveal">
           <h1>Halo, Sobat Belajar! 👋</h1>
           <p>Siap berkembang bersama hari ini?</p>
         </div>
 
-        <label className="search-box">
-          <span>⌕</span>
-          <input
-            type="search"
-            placeholder="Cari komunitas, teman dan topik..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <span className="search-submit">⌕</span>
-        </label>
+        <button
+          type="button"
+          className="search-box"
+          onClick={openSearch}
+          aria-label="Cari teman atau mentor"
+        >
+          <span className="search-box-placeholder">
+            Cari komunitas, teman dan topik...
+          </span>
+          <span className="search-submit" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <path
+                d="M6.5 11C8.98528 11 11 8.98528 11 6.5C11 4.01472 8.98528 2 6.5 2C4.01472 2 2 4.01472 2 6.5C2 8.98528 4.01472 11 6.5 11Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M13 13L9.67 9.67"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
 
-        <section className="story-section">
+        <section className="story-section home-reveal">
           <div className="section-title-row">
             <h2>Story</h2>
             <button
@@ -186,30 +247,21 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="discussion-section">
+        <section className="discussion-section home-reveal">
           <div className="section-title-row">
             <h2>Up Coming Discussion</h2>
-            <button
-              className="text-link"
-              onClick={() => setActiveTab("Room Server")}
-            >
+            <Link href="/room-server" className="text-link">
               Lihat semuanya ›
-            </button>
+            </Link>
           </div>
 
-          {search && (
-            <p className="search-result">
-              {filteredDiscussions.length} diskusi ditemukan
-            </p>
-          )}
-
-          {filteredDiscussions.length === 0 ? (
+          {discussions.length === 0 ? (
             <div className="empty-state">
               Tidak ada diskusi yang cocok dengan pencarianmu.
             </div>
           ) : (
             <div className="discussion-list">
-              {filteredDiscussions.map((item) => {
+              {discussions.map((item) => {
                 const isJoined = joined.includes(item.title);
 
                 return (
@@ -267,7 +319,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="add-section">
+        <section className="add-section home-reveal">
           <button
             className="add-page-card"
             onClick={() => setShowGroupForm(true)}
@@ -279,7 +331,7 @@ export default function HomePage() {
         </section>
 
         {groups.length > 0 && (
-          <section className="my-groups">
+          <section className="my-groups home-reveal">
             <h2>Grup Saya</h2>
             {groups.map((group, index) => (
               <div
@@ -292,6 +344,8 @@ export default function HomePage() {
               </div>
             ))}
           </section>
+        )}
+          </>
         )}
       </div>
 
@@ -332,34 +386,32 @@ export default function HomePage() {
         </div>
       )}
 
+      <nav className="bottom-nav">
+        {navigation.map((item) => (
+          <button
+            key={item.label}
+            className={`bottom-nav-item ${
+              activeTab === item.label ? "selected" : ""
+            }`}
+            onClick={() => {
+              setActiveTab(item.label);
 
-<nav className="bottom-nav">
-  {navigation.map((item) => (
-    <button
-      key={item.label}
-      className={`bottom-nav-item ${
-        activeTab === item.label ? "selected" : ""
-      }`}
-      onClick={() => {
-        setActiveTab(item.label);
-
-        if (item.label === "Profil") {
-          window.location.href = "/login";
-        }
-      }}
-    >
-      <Image
-        src={item.icon}
-        alt={item.label}
-        width={24}
-        height={24}
-        className="bottom-nav-icon"
-      />
-      <span>{item.label}</span>
-    </button>
-  ))}
-</nav>
-
+              if (item.label === "Profil") {
+                window.location.href = "/login";
+              }
+            }}
+          >
+            <Image
+              src={item.icon}
+              alt={item.label}
+              width={24}
+              height={24}
+              className="bottom-nav-icon"
+            />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </main>
   );
 }

@@ -1,0 +1,247 @@
+/* ===========================================================
+   PROFILE PAGE — "Edit Profil"
+   Ukuran & kerangka mengikuti halaman /home (project web):
+   - shell   : max-width 1100px (seperti .app-shell)
+   - konten  : max-width 760px  (seperti .home-content)
+   - header  : tinggi 75px      (seperti .home-header)
+   Background paling belakang putih; kartu menu tetap biru solid.
+   =========================================================== */
+
+.screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1100px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding-bottom: 85px; /* ruang untuk bottom nav */
+  background: var(--white);
+  color: var(--text);
+}
+
+/* --------------------------- HEADER --------------------------- */
+
+.topHeader {
+  display: grid;
+  grid-template-columns: 42px 1fr 42px;
+  align-items: center;
+  height: 75px;
+  padding: 0 28px;
+  border-bottom: 1px solid #f0f3f8;
+  background: var(--white);
+}
+
+.backArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.backArrow:hover {
+  background: var(--blue-light);
+}
+
+.screenTitle {
+  margin: 0;
+  text-align: center;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: #0b0b0b;
+}
+
+.headerSpacer {
+  width: 40px;
+  height: 40px;
+}
+
+/* ---------------------------- BODY ---------------------------- */
+
+.bodyContent {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 30px 25px 35px;
+}
+
+/* ----------------------- IDENTITAS USER ----------------------- */
+
+.identitySection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0 2px;
+  text-align: center;
+}
+
+.avatarContainer {
+  position: relative;
+  width: 116px;
+  height: 116px;
+}
+
+.avatarCircle {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 4px solid var(--white);
+  border-radius: 50%;
+  background: var(--blue-light);
+  box-shadow: 0 10px 26px rgba(54, 136, 245, 0.25);
+}
+
+.avatarImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.editBadge {
+  position: absolute;
+  right: 0;
+  bottom: 6px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 3px solid var(--white);
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 6px 14px rgba(54, 136, 245, 0.4);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.editBadge:hover {
+  background: var(--blue-dark);
+  transform: scale(1.06);
+}
+
+.editBadgeImg {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.userName {
+  margin: 18px 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.userMeta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.metaDivider {
+  color: #cdd7e5;
+}
+
+/* ------------------------- KARTU MENU ------------------------- */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--blue);
+  border-radius: 8px;
+  box-shadow: 0 12px 26px rgba(54, 136, 245, 0.38);
+}
+
+.cardRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 20px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  text-align: left;
+  transition: background 0.18s ease;
+}
+
+.cardRow:not(:first-child) {
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.cardRow:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.rowLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.rowIcon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.rowRight {
+  flex-shrink: 0;
+  color: #e4efff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* --------------------------- RESPONSIF --------------------------- */
+
+@media (max-width: 760px) {
+  .topHeader {
+    height: 70px;
+    padding: 0 18px;
+  }
+
+  .bodyContent {
+    padding: 24px 18px 30px;
+  }
+}
+
+@media (max-width: 420px) {
+  .avatarContainer {
+    width: 100px;
+    height: 100px;
+  }
+
+  .userName {
+    font-size: 18px;
+  }
+
+  .cardRow {
+    padding: 14px 15px;
+  }
+
+  .rowLeft {
+    font-size: 13px;
+  }
+}

@@ -3,10 +3,28 @@
 import Link from "next/link";
 
 export interface ControlBarProps {
+  isMicOn?: boolean;
+  isCamOn?: boolean;
+  isScreenSharing?: boolean;
+  isScreenShareSupported?: boolean;
+  onToggleMic?: () => void;
+  onToggleCam?: () => void;
+  onToggleScreenShare?: () => void;
+  onCaptureScreenshot?: () => void;
   onOpenChat?: () => void;
 }
 
-export default function ControlBar({ onOpenChat }: ControlBarProps = {}) {
+export default function ControlBar({
+  isMicOn = false,
+  isCamOn = false,
+  isScreenSharing = false,
+  isScreenShareSupported = true,
+  onToggleMic,
+  onToggleCam,
+  onToggleScreenShare,
+  onCaptureScreenshot,
+  onOpenChat,
+}: ControlBarProps = {}) {
   return (
     <aside
       aria-label="Panel Kontrol Panggilan"
@@ -40,96 +58,147 @@ export default function ControlBar({ onOpenChat }: ControlBarProps = {}) {
           boxSizing: "border-box",
         }}
       >
-        {/* 1. Tombol Mikrofon */}
+        {/* 1. Tombol Mikrofon: Merah dicoret jika mati, Biru jika aktif */}
         <button
           type="button"
-          aria-label="Mikrofon"
+          onClick={onToggleMic}
+          aria-label={isMicOn ? "Matikan mikrofon" : "Nyalakan mikrofon"}
           style={{
             width: "44px",
             height: "44px",
             minWidth: "44px",
             minHeight: "44px",
             borderRadius: "50%",
-            backgroundColor: "#f1f5fa",
-            color: "#26354b",
-            border: "none",
+            backgroundColor: isMicOn ? "#edf5ff" : "#fef2f2",
+            color: isMicOn ? "#3688f5" : "#ef4444",
+            border: isMicOn ? "1.5px solid #3688f5" : "1px solid #fee2e2",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
             padding: 0,
+            transition: "all 0.15s ease",
           }}
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="23" />
-            <line x1="8" y1="23" x2="16" y2="23" />
-          </svg>
+          {isMicOn ? (
+            // Ikon Mic Normal
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+          ) : (
+            // Ikon Mic Mati Merah Dicoret
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="1" y1="1" x2="23" y2="23" />
+              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+              <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+          )}
         </button>
 
-        {/* 2. Tombol Kamera */}
+        {/* 2. Tombol Kamera: Abu-abu jika mati, Biru jika aktif */}
         <button
           type="button"
-          aria-label="Kamera"
+          onClick={onToggleCam}
+          aria-label={isCamOn ? "Matikan kamera" : "Nyalakan kamera"}
           style={{
             width: "44px",
             height: "44px",
             minWidth: "44px",
             minHeight: "44px",
             borderRadius: "50%",
-            backgroundColor: "#f1f5fa",
-            color: "#26354b",
-            border: "none",
+            backgroundColor: isCamOn ? "#edf5ff" : "#f1f5fa",
+            color: isCamOn ? "#3688f5" : "#64748b",
+            border: isCamOn ? "1.5px solid #3688f5" : "1px solid #e2e8f0",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
             padding: 0,
+            transition: "all 0.15s ease",
           }}
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polygon points="23 7 16 12 23 17 23 7" />
-            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-          </svg>
+          {isCamOn ? (
+            // Ikon Kamera Aktif
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="23 7 16 12 23 17 23 7" />
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+            </svg>
+          ) : (
+            // Ikon Kamera Mati Abu-abu
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="1" y1="1" x2="23" y2="23" />
+              <path d="M21 21l-3.34-3.34" />
+              <path d="M23 7l-7 5v1.17l4.87 3.48A1 1 0 0 0 23 15.82V7z" />
+              <path d="M1 5h2m4 0h9a2 2 0 0 1 2 2v8.5" />
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+            </svg>
+          )}
         </button>
 
-        {/* 3. Tombol Bagikan Layar */}
+        {/* 3. Tombol Bagikan Layar (Share Screen) */}
         <button
           type="button"
-          aria-label="Bagikan layar"
+          onClick={onToggleScreenShare}
+          aria-label={
+            isScreenSharing ? "Hentikan berbagi layar" : "Bagikan layar"
+          }
           style={{
             width: "44px",
             height: "44px",
             minWidth: "44px",
             minHeight: "44px",
             borderRadius: "50%",
-            backgroundColor: "#f1f5fa",
-            color: "#26354b",
-            border: "none",
+            backgroundColor: isScreenSharing ? "#edf5ff" : "#f1f5fa",
+            color: isScreenSharing ? "#3688f5" : isScreenShareSupported ? "#26354b" : "#94a3b8",
+            border: isScreenSharing ? "1.5px solid #3688f5" : "1px solid #e2e8f0",
+            opacity: isScreenShareSupported ? 1 : 0.6,
+            cursor: isScreenShareSupported ? "pointer" : "not-allowed",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            cursor: "pointer",
             padding: 0,
+            transition: "all 0.15s ease",
           }}
         >
           <svg
@@ -153,6 +222,7 @@ export default function ControlBar({ onOpenChat }: ControlBarProps = {}) {
         {/* 4. Tombol Tangkapan Layar (Screenshot) */}
         <button
           type="button"
+          onClick={onCaptureScreenshot}
           aria-label="Tangkapan layar"
           style={{
             width: "44px",
@@ -162,12 +232,13 @@ export default function ControlBar({ onOpenChat }: ControlBarProps = {}) {
             borderRadius: "50%",
             backgroundColor: "#f1f5fa",
             color: "#26354b",
-            border: "none",
+            border: "1px solid #e2e8f0",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
             padding: 0,
+            transition: "all 0.15s ease",
           }}
         >
           <svg
@@ -241,7 +312,7 @@ export default function ControlBar({ onOpenChat }: ControlBarProps = {}) {
             padding: 0,
           }}
         >
-          {/* Ikon Telepon Akhiri (Handset Terbalik) */}
+          {/* Ikon Telepon Akhiri */}
           <svg
             width="20"
             height="20"

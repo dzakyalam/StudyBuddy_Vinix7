@@ -1,10 +1,25 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+
 interface StageViewProps {
   presenterName?: string;
+  screenStream?: MediaStream | null;
 }
 
 export default function StageView({
   presenterName = "Max Zul",
+  screenStream = null,
 }: StageViewProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Sambungkan screenStream ke elemen video panggung
+  useEffect(() => {
+    if (videoRef.current && screenStream) {
+      videoRef.current.srcObject = screenStream;
+    }
+  }, [screenStream]);
+
   return (
     <section aria-label="Tampilan Layar Presentasi" style={{ width: "100%" }}>
       {/* Label "Screen" */}
@@ -19,15 +34,16 @@ export default function StageView({
         Screen
       </h2>
 
-      {/* Panggung Rounded Besar dengan Gradasi Navy/Ungu */}
+      {/* Panggung Rounded Besar dengan Layar Share Screen atau Gradasi Navy/Ungu */}
       <div
         style={{
           width: "100%",
           aspectRatio: "16 / 9",
           minHeight: "190px",
           borderRadius: "20px",
-          background:
-            "linear-gradient(135deg, #151a36 0%, #2c1a52 50%, #151934 100%)",
+          background: screenStream
+            ? "#0f172a"
+            : "linear-gradient(135deg, #151a36 0%, #2c1a52 50%, #151934 100%)",
           boxShadow: "0 8px 24px rgba(21, 26, 54, 0.15)",
           position: "relative",
           overflow: "hidden",
@@ -37,25 +53,42 @@ export default function StageView({
           boxSizing: "border-box",
         }}
       >
-        {/* Tulisan "UI | UX" Murni dari CSS */}
-        <div
-          aria-label="Presentasi UI UX"
-          style={{
-            fontSize: "36px",
-            fontWeight: 900,
-            color: "#ffffff",
-            letterSpacing: "3px",
-            userSelect: "none",
-            textShadow: "0 4px 16px rgba(0, 0, 0, 0.4)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
-          <span>UI</span>
-          <span style={{ color: "#3688f5", fontWeight: 400 }}>|</span>
-          <span>UX</span>
-        </div>
+        {screenStream ? (
+          // Video Layar yang Sedang Dibagikan
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            aria-label="Tampilan layar yang dibagikan"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              backgroundColor: "#000000",
+            }}
+          />
+        ) : (
+          // Teks "UI | UX" Murni dari CSS
+          <div
+            aria-label="Presentasi UI UX"
+            style={{
+              fontSize: "36px",
+              fontWeight: 900,
+              color: "#ffffff",
+              letterSpacing: "3px",
+              userSelect: "none",
+              textShadow: "0 4px 16px rgba(0, 0, 0, 0.4)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <span>UI</span>
+            <span style={{ color: "#3688f5", fontWeight: 400 }}>|</span>
+            <span>UX</span>
+          </div>
+        )}
 
         {/* Badge "Presenter: <nama>" */}
         <div
@@ -74,6 +107,7 @@ export default function StageView({
             alignItems: "center",
             gap: "6px",
             boxShadow: "0 2px 6px rgba(0, 0, 0, 0.2)",
+            zIndex: 10,
           }}
         >
           <span
@@ -85,7 +119,7 @@ export default function StageView({
               display: "inline-block",
             }}
           />
-          <span>Presenter: {presenterName}</span>
+          <span>Presenter: {screenStream ? "Layar Anda" : presenterName}</span>
         </div>
       </div>
     </section>

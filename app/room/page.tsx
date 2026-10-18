@@ -7,13 +7,17 @@ import StageView from "@/app/components/room/StageView";
 import ParticipantTile from "@/app/components/room/ParticipantTile";
 import ControlBar from "@/app/components/room/ControlBar";
 import ChatPanel from "@/app/components/room/ChatPanel";
-import { rooms, members } from "@/app/lib/mock-data";
+import { useRoomMedia } from "@/app/components/room/useRoomMedia";
+import { rooms, members, penggunaAktif } from "@/app/lib/mock-data";
 
 function RoomContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const [bukaChat, setBukaChat] = useState<boolean>(false);
+
+  // Hook manajemen media lokal (mikrofon, kamera, share screen, screenshot, audio analyser)
+  const media = useRoomMedia();
 
   // Cari room berdasarkan id atau kode
   const room = rooms.find((r) => r.id === id || r.kode === id);
@@ -113,7 +117,7 @@ function RoomContent() {
     );
   }
 
-  // Presenter yang sedang berbagi layar (misal anggota pertama)
+  // Presenter yang sedang berbagi layar (misal anggota pertama atau jika screen share lokal)
   const presenter = daftarPeserta[0]?.nama || "Max Zul";
 
   return (
@@ -128,6 +132,35 @@ function RoomContent() {
         position: "relative",
       }}
     >
+      {/* Toast Notifikasi / Error Media Bahasa Indonesia */}
+      {media.toastMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            top: "16px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 150,
+            backgroundColor: "#1e293b",
+            color: "#ffffff",
+            padding: "10px 18px",
+            borderRadius: "9999px",
+            fontSize: "12px",
+            fontWeight: 600,
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            maxWidth: "90%",
+            textAlign: "center",
+          }}
+        >
+          <span>{media.toastMessage}</span>
+        </div>
+      )}
+
       {/* Header Room */}
       <header
         style={{
@@ -293,8 +326,11 @@ function RoomContent() {
           boxSizing: "border-box",
         }}
       >
-        {/* Label "Screen" dan Panggung Rounded Besar */}
-        <StageView presenterName={presenter} />
+        {/* Label "Screen" dan Panggung Rounded Besar (Mendukung Share Screen) */}
+        <StageView
+          presenterName={presenter}
+          screenStream={media.screenStream}
+        />
 
         {/* Daftar Peserta */}
         <section aria-label="Daftar Peserta Room">
@@ -317,15 +353,36 @@ function RoomContent() {
               gap: "12px",
             }}
           >
-            {daftarPeserta.map((peserta) => (
-              <ParticipantTile key={peserta.id} member={peserta} />
-            ))}
+            {daftarPeserta.map((peserta) => {
+              const isLocalUser = peserta.id === penggunaAktif.id;
+
+              return (
+                <ParticipantTile
+                  key={peserta.id}
+                  member={peserta}
+                  isLocalUser={isLocalUser}
+                  localCameraStream={isLocalUser ? media.cameraStream : null}
+                  isLocalSpeaking={isLocalUser ? media.isSpeaking : undefined}
+                  isLocalMicOn={isLocalUser ? media.isMicOn : undefined}
+                />
+              );
+            })}
           </div>
         </section>
       </main>
 
       {/* Panel Kontrol di Bagian Bawah */}
-      <ControlBar onOpenChat={() => setBukaChat(true)} />
+      <ControlBar
+        isMicOn={media.isMicOn}
+        isCamOn={media.isCamOn}
+        isScreenSharing={media.isScreenSharing}
+        isScreenShareSupported={media.isScreenShareSupported}
+        onToggleMic={media.toggleMic}
+        onToggleCam={media.toggleCam}
+        onToggleScreenShare={media.toggleScreenShare}
+        onCaptureScreenshot={media.captureScreenshot}
+        onOpenChat={() => setBukaChat(true)}
+      />
 
       {/* Panel Obrolan (Chat Bottom Sheet) */}
       <ChatPanel

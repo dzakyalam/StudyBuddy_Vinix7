@@ -1,10 +1,41 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import type { Member } from "@/app/lib/mock-data";
 
 export interface ParticipantTileProps {
   member: Member;
+  isLocalUser?: boolean;
+  localCameraStream?: MediaStream | null;
+  isLocalSpeaking?: boolean;
+  isLocalMicOn?: boolean;
 }
 
-export default function ParticipantTile({ member }: ParticipantTileProps) {
+export default function ParticipantTile({
+  member,
+  isLocalUser = false,
+  localCameraStream = null,
+  isLocalSpeaking,
+  isLocalMicOn,
+}: ParticipantTileProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Sambungkan localCameraStream ke elemen video
+  useEffect(() => {
+    if (videoRef.current && localCameraStream) {
+      videoRef.current.srcObject = localCameraStream;
+    }
+  }, [localCameraStream]);
+
+  // Nilai status jika tile ini adalah pengguna aktif lokal
+  const isSpeaking = isLocalUser && isLocalSpeaking !== undefined
+    ? isLocalSpeaking
+    : member.speaking;
+
+  const isMicOn = isLocalUser && isLocalMicOn !== undefined
+    ? isLocalMicOn
+    : member.micOn;
+
   return (
     <div
       style={{
@@ -16,37 +47,56 @@ export default function ParticipantTile({ member }: ParticipantTileProps) {
         alignItems: "center",
         position: "relative",
         boxSizing: "border-box",
-        border: member.speaking
-          ? "3px solid #3688f5"
-          : "1.5px solid #dce8f8",
-        boxShadow: member.speaking
-          ? "0 0 12px rgba(54, 136, 245, 0.25)"
-          : "none",
+        border: isSpeaking ? "3px solid #3688f5" : "1.5px solid #dce8f8",
+        boxShadow: isSpeaking ? "0 0 12px rgba(54, 136, 245, 0.25)" : "none",
         transition: "border 0.2s ease, box-shadow 0.2s ease",
       }}
     >
-      {/* Avatar PERSEGI bersudut membulat (inisial berwarna) */}
-      <div
-        aria-hidden="true"
-        style={{
-          width: "56px",
-          height: "56px",
-          minWidth: "56px",
-          minHeight: "56px",
-          borderRadius: "14px", // Persegi bersudut membulat (bukan lingkaran 50%)
-          backgroundColor: member.warnaAvatar || "#3688f5",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#ffffff",
-          fontSize: "18px",
-          fontWeight: 800,
-          boxShadow: "0 3px 8px rgba(0, 0, 0, 0.12)",
-          userSelect: "none",
-        }}
-      >
-        {member.inisial}
-      </div>
+      {/* Tampilan Avatar / Video Kamera */}
+      {isLocalUser && localCameraStream ? (
+        // Video Lokal (Mirror, Muted)
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          aria-label="Video kamera Anda"
+          style={{
+            width: "56px",
+            height: "56px",
+            minWidth: "56px",
+            minHeight: "56px",
+            borderRadius: "14px",
+            objectFit: "cover",
+            transform: "scaleX(-1)", // Mirror
+            backgroundColor: "#000000",
+            boxShadow: "0 3px 8px rgba(0, 0, 0, 0.12)",
+          }}
+        />
+      ) : (
+        // Avatar PERSEGI bersudut membulat (inisial berwarna)
+        <div
+          aria-hidden="true"
+          style={{
+            width: "56px",
+            height: "56px",
+            minWidth: "56px",
+            minHeight: "56px",
+            borderRadius: "14px", // Persegi bersudut membulat
+            backgroundColor: member.warnaAvatar || "#3688f5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#ffffff",
+            fontSize: "18px",
+            fontWeight: 800,
+            boxShadow: "0 3px 8px rgba(0, 0, 0, 0.12)",
+            userSelect: "none",
+          }}
+        >
+          {member.inisial}
+        </div>
+      )}
 
       {/* Nama di bawah avatar */}
       <span
@@ -62,7 +112,7 @@ export default function ParticipantTile({ member }: ParticipantTileProps) {
           maxWidth: "100%",
         }}
       >
-        {member.nama}
+        {member.nama} {isLocalUser && "(Anda)"}
       </span>
 
       {/* Ikon mic dan orang kecil di kanan bawah */}
@@ -76,14 +126,14 @@ export default function ParticipantTile({ member }: ParticipantTileProps) {
           gap: "4px",
         }}
       >
-        {/* Ikon Mic */}
-        {member.micOn ? (
+        {/* Ikon Mic: merah dicoret bila mati, biru/abu bila aktif */}
+        {isMicOn ? (
           <svg
             width="13"
             height="13"
             viewBox="0 0 24 24"
             fill="none"
-            stroke={member.speaking ? "#3688f5" : "#64748b"}
+            stroke={isSpeaking ? "#3688f5" : "#64748b"}
             strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"

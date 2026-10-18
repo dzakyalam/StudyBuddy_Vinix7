@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     rules: {
       "*.css": {
+        // Jangan jalankan loader Tailwind pada CSS Modules (*.module.css),
+        // supaya Turbopack tetap memprosesnya sebagai CSS Module (class di-hash).
+        condition: { not: { path: /\.module\.css$/ } },
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
       },

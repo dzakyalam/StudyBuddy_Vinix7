@@ -2,6 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import Navbar from "@/components/navbar/Navbar";
 
 type Story = {
   name: string;
@@ -55,16 +57,7 @@ const discussions: Discussion[] = [
 ];
 
 
-const navigation = [
-  { label: "Home", icon: "/images/Home.png" },
-  { label: "Chat", icon: "/images/chat.png" },
-  { label: "Room Server", icon: "/images/room server.png" },
-  { label: "Jadwal", icon: "/images/logo jadwal.png" },
-  { label: "Profil", icon: "/images/Profile.png" },
-];
-
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState("Home");
   const [search, setSearch] = useState("");
   const [discussionIndex, setDiscussionIndex] = useState(0);
   const [joined, setJoined] = useState<string[]>([]);
@@ -189,12 +182,9 @@ export default function HomePage() {
         <section className="discussion-section">
           <div className="section-title-row">
             <h2>Up Coming Discussion</h2>
-            <button
-              className="text-link"
-              onClick={() => setActiveTab("Room Server")}
-            >
+            <Link href="/room-server" className="text-link">
               Lihat semuanya ›
-            </button>
+            </Link>
           </div>
 
           {search && (
@@ -333,32 +323,7 @@ export default function HomePage() {
       )}
 
 
-<nav className="bottom-nav">
-  {navigation.map((item) => (
-    <button
-      key={item.label}
-      className={`bottom-nav-item ${
-        activeTab === item.label ? "selected" : ""
-      }`}
-      onClick={() => {
-        setActiveTab(item.label);
-
-        if (item.label === "Profil") {
-          window.location.href = "/login";
-        }
-      }}
-    >
-      <Image
-        src={item.icon}
-        alt={item.label}
-        width={24}
-        height={24}
-        className="bottom-nav-icon"
-      />
-      <span>{item.label}</span>
-    </button>
-  ))}
-</nav>
+      <Navbar />
 
     </main>
   );

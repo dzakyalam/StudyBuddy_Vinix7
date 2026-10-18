@@ -1,45 +1,57 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/app/components/room/Header";
 import BottomNav from "@/app/components/room/BottomNav";
 import RoomCard from "@/app/components/room/RoomCard";
 import CreateRoomSheet from "@/app/components/room/CreateRoomSheet";
 import {
-  rooms as initialRooms,
   kategoriContoh,
   type Room,
 } from "@/app/lib/mock-data";
+import { useRooms, saveNewRoom } from "@/app/lib/room-store";
 import "./room-server.css";
 
 export default function RoomServerPage() {
-  const [daftarRoom, setDaftarRoom] = useState<Room[]>(initialRooms);
+  const router = useRouter();
+  const daftarRoom = useRooms();
   const [kataKunci, setKataKunci] = useState<string>("");
   const [kategoriDipilih, setKategoriDipilih] = useState<string>("");
   const [bukaDropdown, setBukaDropdown] = useState<boolean>(false);
   const [bukaSheetBuatRoom, setBukaSheetBuatRoom] = useState<boolean>(false);
 
   function handleCreateRoom(newRoom: Room) {
-    setDaftarRoom((prev) => [newRoom, ...prev]);
+    saveNewRoom(newRoom);
+    setBukaSheetBuatRoom(false);
+    // Langsung arahkan pengguna ke room baru yang dibuat
+    router.push(`/room?id=${newRoom.id}`);
   }
+
 
   // Filter daftar room berdasarkan pencarian (nama atau kode) dan kategori
   const roomTerfilter = useMemo(() => {
     return daftarRoom.filter((room) => {
+      if (!room) return false;
+      const nama = String(room.nama || (room as unknown as { title?: string })?.title || "").toLowerCase();
+      const kode = String(room.kode || (room as unknown as { code?: string })?.code || "").toLowerCase();
+      const kategori = String(room.kategori || (room as unknown as { category?: string })?.category || "").toLowerCase();
+
       const query = kataKunci.trim().toLowerCase();
       const cocokPencarian =
         !query ||
-        room.nama.toLowerCase().includes(query) ||
-        room.kode.toLowerCase().includes(query);
+        nama.includes(query) ||
+        kode.includes(query);
 
       const cocokKategori =
         !kategoriDipilih ||
         kategoriDipilih === "Semua Kategori" ||
-        room.kategori.toLowerCase() === kategoriDipilih.toLowerCase();
+        kategori === kategoriDipilih.toLowerCase();
 
       return cocokPencarian && cocokKategori;
     });
   }, [daftarRoom, kataKunci, kategoriDipilih]);
+
 
   return (
     <div className="room-server-shell min-h-screen bg-white flex flex-col relative">

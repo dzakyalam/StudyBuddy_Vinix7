@@ -10,12 +10,13 @@ import ChatPanel from "@/app/components/room/ChatPanel";
 import JoinRoomSheet from "@/app/components/room/JoinRoomSheet";
 import LeaveConfirmDialog from "@/app/components/room/LeaveConfirmDialog";
 import { useRoomMedia } from "@/app/components/room/useRoomMedia";
-import { rooms, penggunaAktif, type Member } from "@/app/lib/mock-data";
+import { penggunaAktif, type Member } from "@/app/lib/mock-data";
 import {
   getRoomParticipants,
   addParticipantToRoom,
   removeParticipantFromRoom,
   setupRoomPresence,
+  useRoom,
 } from "@/app/lib/room-store";
 import "./room.css";
 
@@ -31,8 +32,8 @@ function RoomContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
-  // Cari room berdasarkan id atau kode
-  const room = rooms.find((r) => r.id === id || r.kode === id);
+  // Cari room berdasarkan id atau kode dari store bersama secara reaktif
+  const room = useRoom(id);
 
   // Status bergabung ke room (sebelum gabung, tampilkan sheet 'Siap bergabung?')
   const [sudahGabung, setSudahGabung] = useState(false);
@@ -277,6 +278,8 @@ function RoomContent() {
 
   // Presenter layar
   const presenter = daftarPeserta[0]?.nama || "Max Zul";
+  const roomNama = room.nama || (room as unknown as { title?: string })?.title || "Room Belajar";
+  const roomKode = room.kode || (room as unknown as { code?: string })?.code || "0000";
 
   return (
     <div className="room-page-wrapper">
@@ -387,7 +390,7 @@ function RoomContent() {
           >
             {/* Judul Room (dipotong "...") */}
             <h1
-              title={room.nama}
+              title={roomNama}
               style={{
                 fontSize: "15px",
                 fontWeight: 700,
@@ -399,7 +402,7 @@ function RoomContent() {
                 maxWidth: "320px",
               }}
             >
-              {room.nama}
+              {roomNama}
             </h1>
 
             {/* Subjudul: Code Room: <kode> • N Peserta */}
@@ -414,7 +417,7 @@ function RoomContent() {
                 textOverflow: "ellipsis",
               }}
             >
-              Code Room: {room.kode} • {daftarPeserta.length} Peserta
+              Code Room: {roomKode} • {daftarPeserta.length} Peserta
             </span>
           </div>
         </div>
@@ -744,7 +747,12 @@ function RoomContent() {
         room={room}
         currentParticipants={daftarPeserta}
         onJoin={handleJoinRoom}
-        onCancel={() => router.push("/room-server")}
+        onCancel={() => {
+          if (room) {
+            removeParticipantFromRoom(room.id, penggunaAktif.id);
+          }
+          router.push("/room-server");
+        }}
       />
 
       {/* Dialog Konfirmasi "Keluar dari room?" */}

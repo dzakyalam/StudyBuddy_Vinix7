@@ -1,7 +1,14 @@
 // app/lib/room-store.ts
-// Manajemen data peserta per room, sinkronisasi localStorage, dan presence antar-tab via BroadcastChannel
+// Manajemen data room & peserta per room, sinkronisasi localStorage, dan presence antar-tab via BroadcastChannel
 
-import { members as mockMembers, type Member } from "@/app/lib/mock-data";
+import { useSyncExternalStore, useCallback } from "react";
+import {
+  members as mockMembers,
+  rooms as initialRooms,
+  penggunaAktif,
+  type Member,
+  type Room,
+} from "@/app/lib/mock-data";
 
 export interface PresenceMessage {
   type: "hello" | "bye" | "heartbeat";
@@ -9,7 +16,182 @@ export interface PresenceMessage {
   timestamp: number;
 }
 
+/**
+ * CATATAN SEMENTARA:
+ * Penyimpanan daftar room di localStorage ini adalah solusi state bersama
+ * sementara agar sinkronisasi antar halaman (/room-server dan /room) konsisten
+ * hingga endpoint backend / API sesungguhnya diintegrasikan.
+ */
+const ROOMS_STORAGE_KEY = "studybuddy_rooms";
 const STORAGE_PREFIX = "studybuddy_participants_";
+
+// Mendapatkan semua room dari localStorage (dengan fallback ke initialRooms)
+export function getAllRooms(): Room[] {
+  if (typeof window === "undefined") {
+    return initialRooms;
+  }
+  try {
+    const raw = localStorage.getItem(ROOMS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Normalisasi dan sanitasi setiap objek room agar tidak ada properti undefined
+        const sanitized: Room[] = parsed
+          .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+          .map((item, index) => {
+            const nama = String(item.nama || item.title || item.name || `Room ${index + 1}`);
+            const kode = String(item.kode || item.code || "0000");
+            const kategori = String(item.kategori || item.category || "Umum");
+            const peserta = typeof item.peserta === "number" ? item.peserta : (Array.isArray(item.participants) ? item.participants.length : 1);
+            const kapasitas = typeof item.kapasitas === "number" ? item.kapasitas : (typeof item.maxParticipants === "number" ? item.maxParticipants : 50);
+            return {
+              id: String(item.id || `room-${Date.now()}-${index}`),
+              kode,
+              nama,
+              kategori,
+              peserta,
+              kapasitas,
+              password: item.password ? String(item.password) : null,
+              status: "live" as const,
+              hostId: String(item.hostId || "u1"),
+            };
+          });
+
+        if (sanitized.length > 0) {
+          return sanitized;
+        }
+      }
+    }
+    // Jika belum ada di localStorage, simpan data awal dari mock-data
+    localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(initialRooms));
+  } catch (e) {
+    console.error("Gagal membaca daftar room dari localStorage:", e);
+  }
+  return initialRooms;
+}
+
+// Mencari room berdasarkan ID atau 4-digit kode unik
+export function getRoomByIdOrCode(
+  idOrCode: string | null | undefined
+): Room | undefined {
+  if (!idOrCode) return undefined;
+  const list = getAllRooms();
+  const found = list.find((r) => r.id === idOrCode || r.kode === idOrCode);
+  if (found) return found;
+  return initialRooms.find((r) => r.id === idOrCode || r.kode === idOrCode);
+}
+
+
+// Menyimpan room baru ke localStorage dan memicu pembaruan
+export function saveNewRoom(newRoom: Room): Room[] {
+  try {
+    const currentRooms = getAllRooms();
+    const updated = [
+      newRoom,
+      ...currentRooms.filter(
+        (r) => r.id !== newRoom.id && r.kode !== newRoom.kode
+      ),
+    ];
+    if (typeof window !== "undefined") {
+      localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(updated));
+
+      // Otomatis daftarkan host sebagai peserta pertama room baru jika belum ada
+      const hostMember: Member = {
+        id: newRoom.hostId || penggunaAktif.id,
+        nama: penggunaAktif.nama,
+        inisial: penggunaAktif.nama[0]?.toUpperCase() || "Z",
+        warnaAvatar: "#3688F5",
+        micOn: false,
+        camOn: false,
+        speaking: false,
+      };
+      saveRoomParticipants(newRoom.id, [hostMember]);
+
+      // Emit event agar komponen lain (seperti RoomServerPage) langsung diperbarui
+      window.dispatchEvent(
+        new CustomEvent("studybuddy_rooms_changed", {
+          detail: { rooms: updated },
+        })
+      );
+    }
+    return updated;
+  } catch (e) {
+    console.error("Gagal menyimpan room baru ke localStorage:", e);
+    return [newRoom, ...initialRooms];
+  }
+}
+
+// Subskripsi perubahan daftar room
+function subscribeRooms(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("studybuddy_rooms_changed", callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener("studybuddy_rooms_changed", callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+let cachedRoomsRaw: string | null = null;
+let cachedRoomsList: Room[] = initialRooms;
+
+function getRoomsSnapshot(): Room[] {
+  if (typeof window === "undefined") return initialRooms;
+  try {
+    const raw = localStorage.getItem(ROOMS_STORAGE_KEY);
+    if (raw !== cachedRoomsRaw) {
+      cachedRoomsRaw = raw;
+      cachedRoomsList = getAllRooms();
+    }
+  } catch {
+    cachedRoomsList = initialRooms;
+  }
+  return cachedRoomsList;
+}
+
+function getServerRoomsSnapshot(): Room[] {
+  return initialRooms;
+}
+
+// Hook reaktif untuk membaca daftar room di komponen React
+export function useRooms(): Room[] {
+  return useSyncExternalStore(
+    subscribeRooms,
+    getRoomsSnapshot,
+    getServerRoomsSnapshot
+  );
+}
+
+// Hook reaktif untuk mencari 1 room berdasarkan ID atau Kode
+export function useRoom(idOrCode: string | null | undefined): Room | undefined {
+  const roomsList = useRooms();
+  if (!idOrCode) return undefined;
+  return roomsList.find((r) => r.id === idOrCode || r.kode === idOrCode);
+}
+
+// Hook reaktif untuk membaca jumlah peserta suatu room tanpa hydration mismatch
+export function useRoomParticipantCount(
+  roomId: string,
+  fallbackCount: number
+): number {
+  const subscribe = useCallback((callback: () => void) => {
+    if (typeof window === "undefined") return () => {};
+    function handler() {
+      callback();
+    }
+    window.addEventListener("studybuddy_room_update", handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("studybuddy_room_update", handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
+
+  const getSnapshot = () => getRoomParticipantCount(roomId, fallbackCount);
+  const getServerSnapshot = () => fallbackCount;
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
 
 // Mendapatkan daftar peserta untuk room tertentu dari localStorage
 export function getRoomParticipants(
@@ -98,6 +280,34 @@ export function addParticipantToRoom(
   return updated;
 }
 
+// Menghapus room dari localStorage (khusus room buatan pengguna, bukan room default)
+export function deleteRoom(roomId: string): void {
+  try {
+    // Lindungi room bawaan mock agar tidak terhapus
+    const isDefault = initialRooms.some(
+      (r) => r.id === roomId || r.kode === roomId
+    );
+    if (isDefault) return;
+
+    if (typeof window !== "undefined") {
+      const currentRooms = getAllRooms();
+      const updatedRooms = currentRooms.filter(
+        (r) => r.id !== roomId && r.kode !== roomId
+      );
+      localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(updatedRooms));
+      localStorage.removeItem(`${STORAGE_PREFIX}${roomId}`);
+
+      window.dispatchEvent(
+        new CustomEvent("studybuddy_rooms_changed", {
+          detail: { rooms: updatedRooms },
+        })
+      );
+    }
+  } catch (e) {
+    console.error("Gagal menghapus room:", e);
+  }
+}
+
 // Menghapus peserta dari room
 export function removeParticipantFromRoom(
   roomId: string,
@@ -107,8 +317,20 @@ export function removeParticipantFromRoom(
   const current = getRoomParticipants(roomId, defaultMembers);
   const updated = current.filter((m) => m.id !== memberId);
   saveRoomParticipants(roomId, updated);
+
+  // Opsi A: Jika seluruh peserta telah keluar (jumlah = 0), dan ini adalah room buatan pengguna, hapus otomatis
+  if (updated.length === 0) {
+    const isDefault = initialRooms.some(
+      (r) => r.id === roomId || r.kode === roomId
+    );
+    if (!isDefault) {
+      deleteRoom(roomId);
+    }
+  }
+
   return updated;
 }
+
 
 // Presence antar-tab menggunakan BroadcastChannel("studybuddy-room-<id>")
 export function setupRoomPresence(

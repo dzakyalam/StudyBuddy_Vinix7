@@ -103,11 +103,11 @@ function JadwalContent() {
       <Header />
 
       {/* Konten Halaman Jadwal Responsif (Mobile: ~600px, Tablet: ~768px, Laptop/Desktop: max-w-6xl) */}
-      <main className="jadwal-container w-full max-w-xl md:max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col pb-36 lg:pb-32">
-        {/* Tanggal Hari Ini & Sapaan Pengguna + Tombol Aksi Desktop */}
+      <main className="jadwal-container w-full max-w-xl md:max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col pb-24 sm:pb-28">
+        {/* Tanggal Hari Ini & Sapaan Pengguna + Tombol Aksi */}
         <section
           aria-label="Sapaan Pengguna"
-          className="mb-4 sm:mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3"
+          className="mb-4 sm:mb-5 flex flex-row items-center justify-between gap-3"
         >
           <div>
             <p
@@ -133,7 +133,7 @@ function JadwalContent() {
             </h1>
           </div>
 
-          {/* Tombol Buat Jadwal inline di layar besar (Desktop >= 1024px) */}
+          {/* Tombol Buat Jadwal */}
           <button
             type="button"
             onClick={handleOpenCreateForm}
@@ -143,17 +143,17 @@ function JadwalContent() {
               color: "#ffffff",
               border: "none",
               borderRadius: "9999px",
-              padding: "10px 22px",
-              minHeight: "44px",
+              padding: "10px 20px",
+              minHeight: "42px",
               boxShadow: "0 4px 14px rgba(54, 136, 245, 0.3)",
               alignItems: "center",
-              gap: "8px",
+              gap: "6px",
               fontSize: "14px",
               fontWeight: 700,
               cursor: "pointer",
               transition: "background-color 0.15s ease, transform 0.1s ease",
             }}
-            className="hidden lg:inline-flex hover:bg-[#2573e0] active:scale-95 shadow-sm flex-shrink-0"
+            className="inline-flex hover:bg-[#2573e0] active:scale-95 shadow-sm flex-shrink-0"
           >
             <span>Buat Jadwal +</span>
           </button>
@@ -253,34 +253,6 @@ function JadwalContent() {
         </section>
       </main>
 
-      {/* Tombol "Buat Jadwal +" Mengambang: Diposisikan di Kanan Bawah tanpa menutupi kartu */}
-      <div className="jadwal-floating-btn-wrap fixed bottom-20 sm:bottom-24 right-4 sm:right-6 lg:right-10 z-40">
-        <button
-          type="button"
-          onClick={handleOpenCreateForm}
-          aria-label="Buat Jadwal Baru"
-          style={{
-            pointerEvents: "auto",
-            backgroundColor: "#3688f5",
-            color: "#ffffff",
-            border: "none",
-            borderRadius: "9999px",
-            padding: "12px 22px",
-            minHeight: "44px",
-            boxShadow: "0 6px 20px rgba(54, 136, 245, 0.4)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            fontSize: "13px",
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "transform 0.15s ease, box-shadow 0.15s ease",
-          }}
-          className="hover:bg-[#2573e0] active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#3688f5]"
-        >
-          <span>Buat Jadwal +</span>
-        </button>
-      </div>
 
       {/* Bottom Sheet Form Agenda (Buat & Ubah) */}
       <AgendaFormSheet

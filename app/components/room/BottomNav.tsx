@@ -15,7 +15,7 @@ const navigation: NavItem[] = [
   { label: "Chat", href: "/chat", icon: "/images/chat.png" },
   { label: "Room Server", href: "/room-server", icon: "/images/room server.png" },
   { label: "Jadwal", href: "/jadwal", icon: "/images/logo jadwal.png" },
-  { label: "Profil", href: "/login", icon: "/images/Profile.png" },
+  { label: "Profil", href: "/profile", icon: "/images/Profile.png" },
 ];
 
 export default function BottomNav() {

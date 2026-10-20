@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/navbar/Navbar";
@@ -21,6 +22,20 @@ function RowIcon({ src }: { src: string }) {
 }
 
 export default function ProfilePage() {
+  const [email, setEmail] = useState("aditya@gmail.com");
+
+  useEffect(() => {
+    const isLoggedIn = sessionStorage.getItem("studybuddy_logged_in");
+    const savedEmail = sessionStorage.getItem("studybuddy_email");
+
+    if (savedEmail) {
+      setEmail(savedEmail);
+    }
+
+    // Jangan redirect otomatis sebelum alur login
+    // dan navigasi aplikasi dipastikan benar.
+  }, []);
+
   return (
     <main className={styles.screen}>
       {/* Header */}
@@ -76,11 +91,13 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          <h2 className={styles.userName}>Aditya Putra</h2>
-          <p className={styles.userMeta}>
-            aditya@gmail.com <span className={styles.metaDivider}>|</span> +01
-            234 567 89
-          </p>
+<h2 className={styles.userName}>Aditya Putra</h2>
+
+<p className={styles.userMeta}>
+  {email}
+  <span className={styles.metaDivider}> | </span>
+  +01 234 567 89
+</p>
         </div>
 
         {/* Card 1: Pengaturan Akun */}

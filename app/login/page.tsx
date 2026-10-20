@@ -10,18 +10,21 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError("");
+function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  e.preventDefault();
+  setError("");
 
-    if (!email.trim() || !password) {
-      setError("Email dan password wajib diisi.");
-      return;
-    }
-
-    // Simulasi login, belum memverifikasi akun.
-    window.location.href = "/home";
+  if (!email.trim() || !password) {
+    setError("Email dan password wajib diisi.");
+    return;
   }
+
+  // Simpan status login simulasi selama sesi browser.
+  sessionStorage.setItem("studybuddy_logged_in", "true");
+  sessionStorage.setItem("studybuddy_email", email.trim());
+
+  window.location.href = "/home";
+}
 
   return (
     <main className="login-page">

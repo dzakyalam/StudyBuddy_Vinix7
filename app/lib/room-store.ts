@@ -146,6 +146,29 @@ export function saveCategory(newCategoryInput: string): SaveCategoryResult {
   }
 }
 
+// Menghapus kategori dari localStorage
+export function deleteCategory(categoryToDelete: string): void {
+  try {
+    const currentCategories = getAllCategories();
+    const updated = currentCategories.filter(
+      (c) => c.toLowerCase() !== categoryToDelete.toLowerCase()
+    );
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(updated));
+
+      // Emit event agar komponen UI langsung otomatis diperbarui
+      window.dispatchEvent(
+        new CustomEvent("studybuddy_categories_changed", {
+          detail: { categories: updated },
+        })
+      );
+    }
+  } catch (e) {
+    console.error("Gagal menghapus kategori dari localStorage:", e);
+  }
+}
+
 // Subskripsi perubahan daftar kategori
 function subscribeCategories(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {};
@@ -186,7 +209,6 @@ export function useCategories(): string[] {
     getServerCategoriesSnapshot
   );
 }
-
 
 // Mendapatkan semua room dari localStorage (dengan fallback ke initialRooms)
 export function getAllRooms(): Room[] {
@@ -243,7 +265,6 @@ export function getRoomByIdOrCode(
   if (found) return found;
   return initialRooms.find((r) => r.id === idOrCode || r.kode === idOrCode);
 }
-
 
 // Menyimpan room baru ke localStorage dan memicu pembaruan
 export function saveNewRoom(newRoom: Room): Room[] {
@@ -376,8 +397,6 @@ export function getRoomParticipants(
     console.error("Gagal membaca participants dari localStorage:", e);
   }
 
-  // Fallback awal jika localStorage kosong:
-  // Untuk room-1 ("UI/UX Design"), ada 7 peserta bawaan (anggota mock selain host lokal Zul/u1)
   if (defaultMembers) return defaultMembers;
   if (roomId === "room-1" || roomId === "2305") {
     return mockMembers.filter((m) => m.id !== "u1");
@@ -396,7 +415,6 @@ export function saveRoomParticipants(
         `${STORAGE_PREFIX}${roomId}`,
         JSON.stringify(participants)
       );
-      // Emit event agar komponen di tab yang sama langsung diperbarui
       window.dispatchEvent(
         new CustomEvent("studybuddy_room_update", {
           detail: { roomId, count: participants.length, participants },
@@ -446,7 +464,6 @@ export function addParticipantToRoom(
 // Menghapus room dari localStorage (khusus room buatan pengguna, bukan room default)
 export function deleteRoom(roomId: string): void {
   try {
-    // Lindungi room bawaan mock agar tidak terhapus
     const isDefault = initialRooms.some(
       (r) => r.id === roomId || r.kode === roomId
     );
@@ -481,7 +498,6 @@ export function removeParticipantFromRoom(
   const updated = current.filter((m) => m.id !== memberId);
   saveRoomParticipants(roomId, updated);
 
-  // Opsi A: Jika seluruh peserta telah keluar (jumlah = 0), dan ini adalah room buatan pengguna, hapus otomatis
   if (updated.length === 0) {
     const isDefault = initialRooms.some(
       (r) => r.id === roomId || r.kode === roomId
@@ -494,14 +510,12 @@ export function removeParticipantFromRoom(
   return updated;
 }
 
-
 // Presence antar-tab menggunakan BroadcastChannel("studybuddy-room-<id>")
 export function setupRoomPresence(
   roomId: string,
   currentMember: Member,
   onPresenceUpdate: (participants: Member[]) => void
 ): () => void {
-  // Pengecekan ketersediaan BroadcastChannel di window
   if (typeof window === "undefined" || !("BroadcastChannel" in window)) {
     return () => {};
   }
@@ -511,20 +525,17 @@ export function setupRoomPresence(
   let heartbeatInterval: NodeJS.Timeout | null = null;
   let timeoutCheckInterval: NodeJS.Timeout | null = null;
 
-  // Lacak timestamp terakhir heartbeat dari tab lain
   const lastSeenMap = new Map<string, number>();
 
   try {
     channel = new BroadcastChannel(channelName);
 
-    // Kirim pesan 'hello' saat pertama kali tab bergabung
     channel.postMessage({
       type: "hello",
       member: currentMember,
       timestamp: Date.now(),
     } as PresenceMessage);
 
-    // Heartbeat berkala setiap 5 detik
     heartbeatInterval = setInterval(() => {
       try {
         channel?.postMessage({
@@ -532,19 +543,15 @@ export function setupRoomPresence(
           member: currentMember,
           timestamp: Date.now(),
         } as PresenceMessage);
-      } catch {
-        // Channel mungkin telah tertutup
-      }
+      } catch {}
     }, 5000);
 
-    // Cek timeout 15 detik untuk peserta lain
     timeoutCheckInterval = setInterval(() => {
       const now = Date.now();
       let hasTimeout = false;
       const currentList = getRoomParticipants(roomId);
 
       const filtered = currentList.filter((m) => {
-        // Jangan hapus tab kita sendiri
         if (m.id === currentMember.id) return true;
         const lastSeen = lastSeenMap.get(m.id);
         if (lastSeen && now - lastSeen > 15000) {
@@ -560,28 +567,23 @@ export function setupRoomPresence(
       }
     }, 5000);
 
-    // Terima pesan presence dari tab lain
     channel.onmessage = (event: MessageEvent<PresenceMessage>) => {
       const data = event.data;
       if (!data || !data.member) return;
 
       const { type, member, timestamp } = data;
-      // Abaikan pesan yang berasal dari tab sendiri
       if (member.id === currentMember.id) return;
 
       lastSeenMap.set(member.id, timestamp || Date.now());
 
       if (type === "hello") {
-        // Balas dengan heartbeat agar tab baru segera mendeteksi kehadiran kita
         try {
           channel?.postMessage({
             type: "heartbeat",
             member: currentMember,
             timestamp: Date.now(),
           } as PresenceMessage);
-        } catch {
-          // Abaikan
-        }
+        } catch {}
 
         const updated = addParticipantToRoom(roomId, member);
         onPresenceUpdate(updated);
@@ -601,7 +603,6 @@ export function setupRoomPresence(
     console.error("Gagal menginisialisasi BroadcastChannel:", e);
   }
 
-  // Fungsi pembersihan (cleanup)
   return () => {
     try {
       if (channel) {
@@ -612,9 +613,7 @@ export function setupRoomPresence(
         } as PresenceMessage);
         channel.close();
       }
-    } catch {
-      // Abaikan error saat menutup channel
-    }
+    } catch {}
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
   };

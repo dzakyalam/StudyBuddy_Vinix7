@@ -7,7 +7,7 @@ import BottomNav from "@/app/components/room/BottomNav";
 import RoomCard from "@/app/components/room/RoomCard";
 import CreateRoomSheet from "@/app/components/room/CreateRoomSheet";
 import { type Room } from "@/app/lib/mock-data";
-import { useRooms, useCategories, saveNewRoom } from "@/app/lib/room-store";
+import { useRooms, useCategories, saveNewRoom, deleteCategory } from "@/app/lib/room-store";
 import "./room-server.css";
 
 export default function RoomServerPage() {
@@ -25,7 +25,6 @@ export default function RoomServerPage() {
     // Langsung arahkan pengguna ke room baru yang dibuat
     router.push(`/room?id=${newRoom.id}`);
   }
-
 
   // Filter daftar room berdasarkan pencarian (nama atau kode) dan kategori
   const roomTerfilter = useMemo(() => {
@@ -51,15 +50,14 @@ export default function RoomServerPage() {
     });
   }, [daftarRoom, kataKunci, kategoriDipilih]);
 
-
   return (
     <div className="room-server-shell min-h-screen bg-white flex flex-col relative">
       {/* Header Utama */}
       <Header />
 
-      {/* Konten Halaman Room Server Responsif (Mobile: ~600px, Tablet: ~768px, Laptop/Desktop: max-w-6xl) */}
+      {/* Konten Halaman Room Server Responsif */}
       <main className="room-server-container w-full max-w-xl md:max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col pb-28 sm:pb-32">
-        {/* Baris Pencarian & Tombol Aksi: Sejajar di Desktop/Tablet, Wrap jika sempit */}
+        {/* Baris Pencarian & Tombol Aksi */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-4 mt-2">
           {/* Kolom Pencarian */}
           <div
@@ -125,7 +123,6 @@ export default function RoomServerPage() {
               }}
               className="hover:bg-[#2474e5] active:scale-95 flex-shrink-0"
             >
-              {/* Ikon Kaca Pembesar (Search) */}
               <svg
                 width="18"
                 height="18"
@@ -188,7 +185,7 @@ export default function RoomServerPage() {
                 </svg>
               </button>
 
-              {/* Menu Pop-up Pilihan Kategori */}
+              {/* Menu Pop-up Pilihan Kategori dengan Fitur Hapus */}
               {bukaDropdown && (
                 <>
                   <div
@@ -210,12 +207,13 @@ export default function RoomServerPage() {
                       border: "1px solid #d4e5ff",
                       borderRadius: "16px",
                       boxShadow: "0 10px 28px rgba(38, 53, 75, 0.14)",
-                      minWidth: "180px",
+                      minWidth: "200px",
                       padding: "6px 0",
                       maxHeight: "320px",
                       overflowY: "auto",
                     }}
                   >
+                    {/* Opsi "Semua" */}
                     <button
                       type="button"
                       role="option"
@@ -229,9 +227,7 @@ export default function RoomServerPage() {
                         minHeight: "44px",
                         padding: "0 16px",
                         border: "none",
-                        backgroundColor: !kategoriDipilih
-                          ? "#edf5ff"
-                          : "transparent",
+                        backgroundColor: !kategoriDipilih ? "#edf5ff" : "transparent",
                         color: !kategoriDipilih ? "#3688f5" : "#26354b",
                         fontWeight: !kategoriDipilih ? 700 : 500,
                         fontSize: "13px",
@@ -245,38 +241,89 @@ export default function RoomServerPage() {
                       Semua
                     </button>
 
+                    {/* Daftar Kategori dengan Tombol Hapus */}
                     {daftarKategori.map((kat) => {
                       const terpilih = kategoriDipilih === kat;
                       return (
-                        <button
+                        <div
                           key={kat}
-                          type="button"
-                          role="option"
-                          aria-selected={terpilih}
-                          onClick={() => {
-                            setKategoriDipilih(kat);
-                            setBukaDropdown(false);
-                          }}
                           style={{
-                            width: "100%",
-                            minHeight: "44px",
-                            padding: "0 16px",
-                            border: "none",
-                            backgroundColor: terpilih
-                              ? "#edf5ff"
-                              : "transparent",
-                            color: terpilih ? "#3688f5" : "#26354b",
-                            fontWeight: terpilih ? 700 : 500,
-                            fontSize: "13px",
-                            textAlign: "left",
-                            cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
+                            justifyContent: "space-between",
+                            width: "100%",
+                            paddingRight: "8px",
+                            backgroundColor: terpilih ? "#edf5ff" : "transparent",
                           }}
                           className="hover:bg-[#edf5ff] transition-colors"
                         >
-                          {kat}
-                        </button>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={terpilih}
+                            onClick={() => {
+                              setKategoriDipilih(kat);
+                              setBukaDropdown(false);
+                            }}
+                            style={{
+                              flex: 1,
+                              minHeight: "44px",
+                              padding: "0 16px",
+                              border: "none",
+                              backgroundColor: "transparent",
+                              color: terpilih ? "#3688f5" : "#26354b",
+                              fontWeight: terpilih ? 700 : 500,
+                              fontSize: "13px",
+                              textAlign: "left",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                          >
+                            {kat}
+                          </button>
+
+                          {/* Tombol Hapus (Ikon Tempat Sampah) */}
+                          <button
+                            type="button"
+                            title={`Hapus kategori ${kat}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Apakah Anda yakin ingin menghapus kategori "${kat}"?`)) {
+                                deleteCategory(kat);
+                                if (kategoriDipilih === kat) {
+                                  setKategoriDipilih("");
+                                }
+                              }
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#ef4444",
+                              cursor: "pointer",
+                              padding: "6px",
+                              borderRadius: "6px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                            className="hover:bg-red-100 transition-colors"
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -284,7 +331,7 @@ export default function RoomServerPage() {
               )}
             </div>
 
-            {/* Pill Biru "Buat Room Belajar" dengan Ikon Plus */}
+            {/* Pill Biru "Buat Room Belajar" */}
             <button
               type="button"
               aria-label="Buat Room Belajar"
@@ -324,7 +371,7 @@ export default function RoomServerPage() {
           </div>
         </div>
 
-        {/* Daftar Kartu Room: Responsif 1 Kolom (Mobile), 2 Kolom (Tablet/md), 3 Kolom (Desktop/xl) */}
+        {/* Daftar Kartu Room */}
         <section
           aria-label="Daftar Room Belajar"
           className="room-server-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 mt-6"

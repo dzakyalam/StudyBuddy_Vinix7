@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -47,6 +48,13 @@ const chatList: ChatItem[] = [
   },
 ];
 
+const roomIdMap: Record<string, string> = {
+  "1": "ilham",
+  "2": "mentor-agus",
+  "3": "ani",
+  "4": "cyber-security",
+};
+
 const filters = [
   { key: "semua", label: "Semua" },
   { key: "teman", label: "Teman" },
@@ -61,13 +69,19 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredChats = chatList.filter((item) => {
-    if (activeTab !== "semua" && item.role !== activeTab) return false;
+    if (activeTab !== "semua" && item.role !== activeTab) {
+      return false;
+    }
+
     if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+
       return (
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+        item.name.toLowerCase().includes(query) ||
+        item.lastMessage.toLowerCase().includes(query)
       );
     }
+
     return true;
   });
 
@@ -101,18 +115,18 @@ export default function ChatPage() {
               xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M16 21V19C16 17.9391 15.5786 16.9217 14.8284 16.1716C14.0783 15.4214 13.0609 15 12 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21"
+                d="M16 21V19C16 16.79 14.21 15 12 15H5C2.79 15 1 16.79 1 19V21"
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <path
-                d="M8.5 11C10.7091 11 12.5 9.20914 12.5 7C12.5 4.79086 10.7091 3 8.5 3C6.29086 3 4.5 4.79086 4.5 7C4.5 9.20914 6.29086 11 8.5 11Z"
+              <circle
+                cx="8.5"
+                cy="7"
+                r="4"
                 stroke="currentColor"
                 strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
               />
               <path
                 d="M20 8V14M17 11H23"
@@ -158,7 +172,9 @@ export default function ChatPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={styles.searchInput}
+            aria-label="Cari kontak"
           />
+
           <button
             type="button"
             className={styles.searchButton}
@@ -171,19 +187,18 @@ export default function ChatPage() {
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
             >
-              <path
-                d="M6.5 11C8.98528 11 11 8.98528 11 6.5C11 4.01472 8.98528 2 6.5 2C4.01472 2 2 4.01472 2 6.5C2 8.98528 4.01472 11 6.5 11Z"
+              <circle
+                cx="6.5"
+                cy="6.5"
+                r="4.5"
                 stroke="currentColor"
                 strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
               />
               <path
-                d="M13 13L9.67 9.67"
+                d="M10 10L13 13"
                 stroke="currentColor"
                 strokeWidth="1.8"
                 strokeLinecap="round"
-                strokeLinejoin="round"
               />
             </svg>
           </button>
@@ -196,7 +211,9 @@ export default function ChatPage() {
               key={filter.key}
               type="button"
               className={`${styles.tab}${
-                activeTab === filter.key ? ` ${styles.tabActive}` : ""
+                activeTab === filter.key
+                  ? ` ${styles.tabActive}`
+                  : ""
               }`}
               onClick={() => setActiveTab(filter.key)}
             >
@@ -208,7 +225,11 @@ export default function ChatPage() {
         {/* Conversation List */}
         <div className={styles.list}>
           {filteredChats.map((chat) => (
-            <div key={chat.id} className={styles.chatItem}>
+            <Link
+              key={chat.id}
+              href={`/chat/${roomIdMap[chat.id]}`}
+              className={styles.chatItem}
+            >
               <div className={styles.avatarWrap}>
                 {chat.isGroup ? (
                   <div className={styles.groupAvatar}>
@@ -220,21 +241,21 @@ export default function ChatPage() {
                       xmlns="http://www.w3.org/2000/svg"
                     >
                       <path
-                        d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21"
+                        d="M17 21V19C17 16.79 15.21 15 13 15H5C2.79 15 1 16.79 1 19V21"
                         stroke="currentColor"
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
-                      <path
-                        d="M9 11C11.2091 11 13 9.20914 13 7C13 4.79086 11.2091 3 9 3C6.79086 3 5 4.79086 5 7C5 9.20914 6.79086 11 9 11Z"
+                      <circle
+                        cx="9"
+                        cy="7"
+                        r="4"
                         stroke="currentColor"
                         strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
                       />
                       <path
-                        d="M23 21V19C22.9993 18.1137 22.7044 17.2528 22.1614 16.5523C21.6184 15.8519 20.8581 15.3516 20 15.13M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25392 19.0078 6.11683 19.0078 7.005C19.0078 7.89317 18.7122 8.75608 18.1676 9.45768C17.623 10.1593 16.8604 10.6597 16 10.88"
+                        d="M23 21V19C23 17.2 21.8 15.7 20 15.2M16 3.2C17.8 3.7 19 5.2 19 7S17.8 10.3 16 10.8"
                         stroke="currentColor"
                         strokeWidth="2"
                         strokeLinecap="round"
@@ -255,10 +276,18 @@ export default function ChatPage() {
 
               <div className={styles.chatContent}>
                 <h3 className={styles.chatName}>{chat.name}</h3>
-                <p className={styles.chatMessage}>{chat.lastMessage}</p>
+                <p className={styles.chatMessage}>
+                  {chat.lastMessage}
+                </p>
               </div>
-            </div>
+            </Link>
           ))}
+
+          {filteredChats.length === 0 && (
+            <p className={styles.emptySearch}>
+              Kontak tidak ditemukan.
+            </p>
+          )}
         </div>
       </div>
 

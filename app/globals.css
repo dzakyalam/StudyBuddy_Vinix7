@@ -1256,3 +1256,128 @@ h2 {
     font-size: 20px;
   }
 }
+
+/* Tema global StudyBuddy */
+:root {
+  color-scheme: light;
+
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f9fc;
+  --bg-card: #ffffff;
+  --text-primary: #202b3c;
+  --text-secondary: #64748b;
+  --border-color: #e5eaf2;
+  --accent-color: #2563eb;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-primary: #111827;
+  --bg-secondary: #0b1120;
+  --bg-card: #1f2937;
+  --text-primary: #f3f4f6;
+  --text-secondary: #a7b2c4;
+  --border-color: #374151;
+  --accent-color: #60a5fa;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* ===========================================================
+   DARK MODE — PENYESUAIAN KOMPONEN GLOBAL STUDYBUDDY
+   =========================================================== */
+
+/* Background dan teks global */
+html[data-theme="dark"],
+html[data-theme="dark"] body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Shell halaman Home */
+html[data-theme="dark"] .app-shell {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Header halaman Home */
+html[data-theme="dark"] .home-header {
+  background-color: var(--bg-primary);
+  border-bottom-color: var(--border-color);
+}
+
+/* Navbar bawah */
+html[data-theme="dark"] .bottom-nav {
+  background: rgba(17, 24, 39, 0.94);
+  border-top-color: var(--border-color);
+}
+
+html[data-theme="dark"] .bottom-nav-item {
+  color: var(--text-secondary);
+}
+
+html[data-theme="dark"] .bottom-nav-item.selected {
+  color: var(--accent-color);
+}
+
+/* Kartu dan panel halaman Home */
+html[data-theme="dark"] .feature-card,
+html[data-theme="dark"] .login-card,
+html[data-theme="dark"] .group-modal,
+html[data-theme="dark"] .add-page-card {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Input halaman login dan modal grup */
+html[data-theme="dark"] .login-form input:not([type="checkbox"]),
+html[data-theme="dark"] .group-modal input {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Tombol outline */
+html[data-theme="dark"] .btn-outline {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Search box */
+html[data-theme="dark"] .search-box {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+html[data-theme="dark"] .search-box-placeholder {
+  color: var(--text-secondary);
+}
+
+/* Kartu diskusi */
+html[data-theme="dark"] .discussion-card,
+html[data-theme="dark"] .group-item {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Modal halaman Home */
+html[data-theme="dark"] .modal-backdrop + .group-modal {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}

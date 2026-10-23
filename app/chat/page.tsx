@@ -1,10 +1,11 @@
-
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/navbar/Navbar";
+import { supabase } from "@/app/lib/supabase";
 import styles from "./chat.module.css";
 
 interface ChatItem {
@@ -14,46 +15,8 @@ interface ChatItem {
   avatar: string;
   isGroup?: boolean;
   lastMessage: string;
+  slug: string;
 }
-
-const chatList: ChatItem[] = [
-  {
-    id: "1",
-    name: "Ilham Spautra",
-    role: "teman",
-    avatar: "/images/figma/ilham.png",
-    lastMessage: "You : Kok anaknya ijazahnya isa ngga terverifikasi",
-  },
-  {
-    id: "2",
-    name: "Mentor Agus Setiawan",
-    role: "mentor",
-    avatar: "/images/figma/agus.png",
-    lastMessage: "You : Hari ini ada pertemuan ya kak ?",
-  },
-  {
-    id: "3",
-    name: "ani",
-    role: "teman",
-    avatar: "/images/figma/ani.png",
-    lastMessage: "You : mau belajar apa aja gw mah ah role kok cuy...",
-  },
-  {
-    id: "4",
-    name: "Grup Cyber Security",
-    role: "komunitas",
-    avatar: "",
-    isGroup: true,
-    lastMessage: "You : mau belajar apa aja gw mah ah role kok cuy...",
-  },
-];
-
-const roomIdMap: Record<string, string> = {
-  "1": "ilham",
-  "2": "mentor-agus",
-  "3": "ani",
-  "4": "cyber-security",
-};
 
 const filters = [
   { key: "semua", label: "Semua" },
@@ -65,8 +28,58 @@ const filters = [
 type FilterKey = (typeof filters)[number]["key"];
 
 export default function ChatPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<FilterKey>("semua");
   const [searchQuery, setSearchQuery] = useState("");
+  const [chatList, setChatList] = useState<ChatItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Ambil data profil pengguna langsung dari database Supabase saat halaman dimuat
+  useEffect(() => {
+    async function fetchChatData() {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        router.replace("/login");
+        return;
+      }
+
+      // Ambil seluruh profil pengguna dari tabel 'profiles' di Supabase, kecuali akun yang sedang login
+      const { data: profilesData, error: dbError } = await supabase
+        .from("profiles")
+        .select("*")
+        .neq("id", user.id);
+
+      if (dbError) {
+        console.error("Gagal memuat data chat dari database:", dbError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (profilesData) {
+        const loadedChats: ChatItem[] = profilesData.map((profile) => {
+          const name = profile.full_name || profile.name || "Pengguna StudyBuddy";
+          const major = profile.major || profile.prodi || "Teman StudyBuddy";
+
+          return {
+            id: profile.id,
+            name: name,
+            role: "teman", // Kategori default untuk pengguna database
+            avatar: profile.avatar_url || profile.foto || "/images/figma/ilham.png",
+            isGroup: false,
+            lastMessage: `Jurusan: ${major}`,
+            slug: profile.id, // Menggunakan UUID profil sebagai slug agar langsung terhubung ke ChatRoom dinamis
+          };
+        });
+
+        setChatList(loadedChats);
+      }
+
+      setLoading(false);
+    }
+
+    fetchChatData();
+  }, [router]);
 
   const filteredChats = chatList.filter((item) => {
     if (activeTab !== "semua" && item.role !== activeTab) {
@@ -84,6 +97,15 @@ export default function ChatPage() {
 
     return true;
   });
+
+  if (loading) {
+    return (
+      <main className={styles.screen}>
+        <div style={{ padding: "2rem", textAlign: "center" }}>Memuat daftar chat dari database...</div>
+        <Navbar />
+      </main>
+    );
+  }
 
   return (
     <main className={styles.screen}>
@@ -168,7 +190,7 @@ export default function ChatPage() {
         <div className={styles.searchBar}>
           <input
             type="search"
-            placeholder="Cari"
+            placeholder="Cari berdasarkan nama..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={styles.searchInput}
@@ -227,7 +249,7 @@ export default function ChatPage() {
           {filteredChats.map((chat) => (
             <Link
               key={chat.id}
-              href={`/chat/${roomIdMap[chat.id]}`}
+              href={`/chat/${chat.slug}`}
               className={styles.chatItem}
             >
               <div className={styles.avatarWrap}>
@@ -285,7 +307,7 @@ export default function ChatPage() {
 
           {filteredChats.length === 0 && (
             <p className={styles.emptySearch}>
-              Kontak tidak ditemukan.
+              Tidak ada pengguna lain yang ditemukan di database.
             </p>
           )}
         </div>

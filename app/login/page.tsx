@@ -3,28 +3,50 @@
 import { useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+// 1. Impor klien Supabase
+import { supabase } from "@/app/lib/supabase";
 
 export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false); // Status loading saat proses login
 
-function handleSubmit(e: FormEvent<HTMLFormElement>) {
-  e.preventDefault();
-  setError("");
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
 
-  if (!email.trim() || !password) {
-    setError("Email dan password wajib diisi.");
-    return;
+    if (!email.trim() || !password) {
+      setError("Email dan password wajib diisi.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 2. Autentikasi user dengan Supabase Auth
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (loginError) {
+        setError(loginError.message);
+        setLoading(false);
+        return;
+      }
+
+      // 3. Jika berhasil, arahkan ke halaman home
+      router.push("/home");
+    } catch (err) {
+      setError("Terjadi kesalahan pada sistem.");
+      setLoading(false);
+    }
   }
-
-  // Simpan status login simulasi selama sesi browser.
-  sessionStorage.setItem("studybuddy_logged_in", "true");
-  sessionStorage.setItem("studybuddy_email", email.trim());
-
-  window.location.href = "/home";
-}
 
   return (
     <main className="login-page">
@@ -121,8 +143,12 @@ function handleSubmit(e: FormEvent<HTMLFormElement>) {
             Ingat saya
           </label>
 
-          <button type="submit" className="btn btn-primary login-submit">
-            Masuk
+          <button 
+            type="submit" 
+            className="btn btn-primary login-submit"
+            disabled={loading}
+          >
+            {loading ? "Memproses..." : "Masuk"}
           </button>
         </form>
 

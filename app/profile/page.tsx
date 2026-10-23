@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/navbar/Navbar";
+import { supabase } from "@/app/lib/supabase";
 import styles from "./profile.module.css";
 
 function RowIcon({ src }: { src: string }) {
@@ -25,45 +25,59 @@ type DialogType = "email" | "logout" | "delete" | null;
 export default function ProfilePage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("aditya@gmail.com");
-  const [newEmail, setNewEmail] = useState("aditya@gmail.com");
+  const [email, setEmail] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [userName, setUserName] = useState("Pengguna StudyBuddy");
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [dialog, setDialog] = useState<DialogType>(null);
   const [message, setMessage] = useState("");
   const [ready, setReady] = useState(false);
 
+  // Ambil data user aktif dari Supabase saat halaman dimuat
   useEffect(() => {
-    const savedEmail =
-      localStorage.getItem("studybuddy_email") ||
-      sessionStorage.getItem("studybuddy_email");
+    async function fetchUserData() {
+      const { data: { user }, error } = await supabase.auth.getUser();
 
-    if (savedEmail) {
-      setEmail(savedEmail);
-      setNewEmail(savedEmail);
+      if (error || !user) {
+        // Jika belum login, alihkan ke halaman login
+        router.replace("/login");
+        return;
+      }
+
+      setEmail(user.email || "");
+      setNewEmail(user.email || "");
+
+      // Menggunakan .maybeSingle() agar aman jika baris profil belum ada di database
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile && profile.full_name) {
+        setUserName(profile.full_name);
+      }
+
+      // Pengaturan notifikasi disimpan secara lokal
+      const savedNotification = localStorage.getItem("studybuddy_notification");
+      if (savedNotification !== null) {
+        setNotificationEnabled(savedNotification === "true");
+      }
+
+      setReady(true);
     }
 
-    const savedNotification = localStorage.getItem(
-      "studybuddy_notification"
-    );
-
-    if (savedNotification !== null) {
-      setNotificationEnabled(savedNotification === "true");
-    }
-
-    setReady(true);
-  }, []);
+    fetchUserData();
+  }, [router]);
 
   function toggleNotification() {
     const nextStatus = !notificationEnabled;
-
     setNotificationEnabled(nextStatus);
-    localStorage.setItem(
-      "studybuddy_notification",
-      String(nextStatus)
-    );
+    localStorage.setItem("studybuddy_notification", String(nextStatus));
   }
 
-  function saveEmail() {
+  // Fungsi Ubah Email via Supabase Auth
+  async function saveEmail() {
     const cleanedEmail = newEmail.trim();
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -72,29 +86,30 @@ export default function ProfilePage() {
       return;
     }
 
-    localStorage.setItem("studybuddy_email", cleanedEmail);
-    sessionStorage.setItem("studybuddy_email", cleanedEmail);
+    const { error } = await supabase.auth.updateUser({ email: cleanedEmail });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
 
     setEmail(cleanedEmail);
-    setNewEmail(cleanedEmail);
     setMessage("");
     setDialog(null);
+    alert("Permintaan ubah email dikirim. Silakan cek email baru Anda untuk verifikasi.");
   }
 
-  function logout() {
-    // Menghapus sesi dan email simulasi pada browser ini.
-    sessionStorage.removeItem("studybuddy_email");
-
+  // Fungsi Logout via Supabase Auth
+  async function logout() {
+    await supabase.auth.signOut();
     setDialog(null);
     router.replace("/login");
   }
 
-  function deleteAccount() {
-    // Frontend-only: hapus data lokal StudyBuddy yang diketahui.
-    localStorage.removeItem("studybuddy_email");
+  // Fungsi Hapus Akun dengan await untuk memastikan proses sign out selesai
+  async function deleteAccount() {
     localStorage.removeItem("studybuddy_notification");
-    sessionStorage.removeItem("studybuddy_email");
-
+    await supabase.auth.signOut();
     setDialog(null);
     router.replace("/login");
   }
@@ -140,7 +155,7 @@ export default function ProfilePage() {
             <div className={styles.avatarCircle}>
               <Image
                 src="/images/figma/aditya.png"
-                alt="Foto profil Aditya Putra"
+                alt="Foto profil"
                 width={120}
                 height={120}
                 className={styles.avatarImg}
@@ -164,12 +179,12 @@ export default function ProfilePage() {
             </Link>
           </div>
 
-          <h2 className={styles.userName}>Aditya Putra</h2>
+          <h2 className={styles.userName}>{userName}</h2>
 
           <p className={styles.userMeta}>
             {email}
             <span className={styles.metaDivider}> | </span>
-            +01 234 567 89
+            Aktif di Supabase
           </p>
         </div>
 
@@ -316,12 +331,11 @@ export default function ProfilePage() {
             <h2 id="emailDialogTitle">Ubah Email Login</h2>
 
             <p className={styles.modalDescription}>
-              Masukkan email baru yang ingin kamu gunakan pada
-              simulasi akun StudyBuddy.
+              Masukkan email baru yang ingin kamu gunakan pada akun Supabase.
             </p>
 
             <label className={styles.inputLabel} htmlFor="newEmail">
-              Alamat Email
+              Alamat Email Baru
             </label>
 
             <input
@@ -340,11 +354,6 @@ export default function ProfilePage() {
             {message && (
               <p className={styles.errorMessage}>{message}</p>
             )}
-
-            <p className={styles.modalNote}>
-              Email ini hanya disimpan di browser. Perubahan belum
-              mengubah kredensial autentikasi di server.
-            </p>
 
             <div className={styles.modalActions}>
               <button
@@ -383,7 +392,7 @@ export default function ProfilePage() {
             <h2 id="logoutDialogTitle">Keluar dari akun?</h2>
 
             <p className={styles.modalDescription}>
-              Kamu akan diarahkan kembali ke halaman login.
+              Kamu akan mengakhiri sesi dan diarahkan kembali ke halaman login.
             </p>
 
             <div className={styles.modalActions}>
@@ -420,18 +429,10 @@ export default function ProfilePage() {
             aria-labelledby="deleteDialogTitle"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 id="deleteDialogTitle">Hapus akun?</h2>
+            <h2 id="deleteDialogTitle">Hapus sesi lokal akun?</h2>
 
             <p className={styles.modalDescription}>
-              Tindakan ini akan menghapus data email dan preferensi
-              notifikasi StudyBuddy yang disimpan secara lokal di
-              browser ini. Tindakan ini tidak dapat dibatalkan dari
-              halaman ini.
-            </p>
-
-            <p className={styles.modalNote}>
-              Karena StudyBuddy belum menggunakan database,
-              penghapusan ini belum menghapus akun di server.
+              Tindakan ini akan keluar dari akun dan membersihkan preferensi lokal browser Anda.
             </p>
 
             <div className={styles.modalActions}>
@@ -448,7 +449,7 @@ export default function ProfilePage() {
                 className={styles.deleteButton}
                 onClick={deleteAccount}
               >
-                Ya, Hapus
+                Ya, Lanjutkan
               </button>
             </div>
           </section>

@@ -1,9 +1,9 @@
-
 "use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/app/lib/supabase";
 import styles from "./edit.module.css";
 
 export default function EditProfilPage() {
@@ -11,14 +11,54 @@ export default function EditProfilPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [foto, setFoto] = useState("/images/figma/aditya.png");
-  const [nama, setNama] = useState("Aditya");
-  const [email, setEmail] = useState("Aditya@gmail.com");
-  const [telepon, setTelepon] = useState("08520978121");
+  const [nama, setNama] = useState("");
+  const [email, setEmail] = useState("");
+  const [telepon, setTelepon] = useState("");
   const [gender, setGender] = useState("Laki-laki");
-  const [semester, setSemester] = useState("7");
-  const [fakultas, setFakultas] = useState("VOKASI");
-  const [prodi, setProdi] = useState("Teknologi Informasi");
-  const [ipk, setIpk] = useState("3.6");
+  const [semester, setSemester] = useState("1");
+  const [fakultas, setFakultas] = useState("");
+  const [prodi, setProdi] = useState("");
+  const [ipk, setIpk] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  // Ambil data profil dari Supabase saat halaman dimuat
+  useEffect(() => {
+    async function fetchUserData() {
+      const { data: { user }, error } = await supabase.auth.getUser();
+
+      if (error || !user) {
+        router.replace("/login");
+        return;
+      }
+
+      setEmail(user.email || "");
+
+      // Ambil detail profil dari tabel profiles di Supabase
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile) {
+        setNama(profile.full_name || profile.name || "");
+        setTelepon(profile.phone || profile.telepon || "");
+        setGender(profile.gender || "Laki-laki");
+        setSemester(profile.semester ? String(profile.semester) : "1");
+        setFakultas(profile.faculty || profile.fakultas || "");
+        setProdi(profile.major || profile.prodi || "");
+        setIpk(profile.gpa ? String(profile.gpa) : profile.ipk ? String(profile.ipk) : "");
+        if (profile.avatar_url || profile.foto) {
+          setFoto(profile.avatar_url || profile.foto);
+        }
+      }
+
+      setReady(true);
+    }
+
+    fetchUserData();
+  }, [router]);
 
   function handleFoto(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -40,7 +80,7 @@ export default function EditProfilPage() {
     setFoto(URL.createObjectURL(file));
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (!nama.trim() || !email.trim() || !telepon.trim() ||
@@ -57,9 +97,58 @@ export default function EditProfilPage() {
       return;
     }
 
-    // Prototipe: data belum disimpan ke database.
-    alert("Data profil berhasil dikonfirmasi!");
-    router.back();
+    setLoading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        alert("Sesi telah habis, silakan login kembali.");
+        router.replace("/login");
+        return;
+      }
+
+      // Perbarui email login di Supabase Auth jika diubah
+      if (email.trim() !== user.email) {
+        const { error: emailError } = await supabase.auth.updateUser({ email: email.trim() });
+        if (emailError) {
+          alert("Gagal memperbarui email: " + emailError.message);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Simpan/perbarui data profil ke tabel 'profiles' di database
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert({
+          id: user.id,
+          full_name: nama.trim(),
+          phone: telepon.trim(),
+          gender: gender,
+          semester: Number(semester),
+          faculty: fakultas.trim(),
+          major: prodi.trim(),
+          gpa: nilaiIpk,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      alert("Data profil berhasil diperbarui dan disinkronkan ke database!");
+      router.back();
+    } catch (err: any) {
+      console.error("Gagal menyimpan profil:", err);
+      alert("Terjadi kesalahan saat menyimpan profil: " + (err.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!ready) {
+    return <main className={styles.page} />;
   }
 
   return (
@@ -231,8 +320,8 @@ export default function EditProfilPage() {
         </section>
 
         {/* Tombol Konfirmasi */}
-        <button type="submit" className={styles.nextButton}>
-          Konfirmasi
+        <button type="submit" className={styles.nextButton} disabled={loading}>
+          {loading ? "Menyimpan..." : "Konfirmasi"}
         </button>
       </form>
     </main>

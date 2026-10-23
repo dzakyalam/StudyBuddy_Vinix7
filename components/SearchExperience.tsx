@@ -6,6 +6,7 @@ import Link from "next/link";
 import ProfileDetail, {
   type ProfileDetailData,
 } from "@/components/ProfileDetail";
+import { supabase } from "@/app/lib/supabase";
 import styles from "./SearchExperience.module.css";
 
 type FilterKey = "semua" | "teman" | "mentor";
@@ -23,7 +24,6 @@ type Person = {
   followers: string;
   following: string;
   bio: string;
-  /** Data khusus bottom sheet "Quick Profile & Add Friend" */
   sheetBio: string;
   university: string;
   detailMajor: string;
@@ -32,55 +32,7 @@ type Person = {
   keywords: string;
 };
 
-const people: Person[] = [
-  {
-    id: "arya",
-    name: "Arya Putra",
-    role: "UI/UX Designer",
-    major: "Teknologi Informasi",
-    semester: "Semester 6",
-    category: "Vokasi",
-    avatar: "/images/figma/arya.png",
-    facultyTitle: "Fakultas Vokasi",
-    facultySub: "Teknologi Informasi",
-    followers: "500 Pengikut",
-    following: "300 Mengikuti",
-    bio: "Terus melangkah kecil setiap hari untuk membangun masa depan, never give up !!!",
-    sheetBio:
-      "UI/UX enthusiast exploring product design and front-end development. Let's build something great!",
-    university: "Institut Teknologi Ngawi",
-    detailMajor: "Sistem Informasi",
-    detailSemester: "5",
-    skills: [
-      ["UIUX", "Frontend", "Backend", "Cloud", "Design"],
-      ["Design", "Design"],
-    ],
-    keywords:
-      "arya putra teknologi informasi vokasi ui/ux designer institut teknologi ngawi sistem informasi",
-  },
-  {
-    id: "putri",
-    name: "Putri Malasari",
-    role: "UI/UX Designer",
-    major: "Administrasi",
-    semester: "Semester 4",
-    category: "Filkom",
-    avatar: "/images/figma/putri.png",
-    facultyTitle: "Fakultas Ilmu Komputer",
-    facultySub: "Administrasi",
-    followers: "420 Pengikut",
-    following: "210 Mengikuti",
-    bio: "Belajar bersama untuk mencapai impian karier di industri digital.",
-    sheetBio:
-      "Suka ngulik desain dan administrasi digital. Ayo belajar bareng!",
-    university: "Universitas Brawijaya",
-    detailMajor: "Administrasi",
-    detailSemester: "3",
-    skills: [["UIUX", "Figma", "Research"], ["Design"]],
-    keywords: "putri malasari administrasi filkom vokasi",
-  },
-];
-
+// Data mentor rekomendasi (Statis/Dummy)
 const mentor: ProfileDetailData = {
   name: "Frenki Herlambang",
   role: "Mentor Web & UI/UX Designer",
@@ -98,26 +50,11 @@ const filters: { key: FilterKey; label: string }[] = [
   { key: "mentor", label: "Mentor" },
 ];
 
-/**
- * Isi pengalaman pencarian (kolom search + filter + kartu rekomendasi).
- * Kartu yang ditekan membuka halaman Full Profile Detail (menggantikan
- * konten ini di tempat, bukan pindah halaman).
- *
- * - Dipakai inline di halaman Home: berikan `onClose` supaya tombol back
- *   menutup panel dengan animasi (kembali seperti Home semula).
- * - Dipakai pada route mandiri `/search`: tanpa `onClose`, tombol back
- *   menjadi Link ke `/home`.
- */
 export default function SearchExperience({
   onClose,
   enterOffset = 0,
 }: {
   onClose?: () => void;
-  /**
-   * Jarak (px) posisi search box di Home terhadap posisi akhir top bar di sini.
-   * Dipakai supaya search box Home "naik" ke atas dengan animasi, bukan
-   * memunculkan panel baru yang meluncur dari bawah.
-   */
   enterOffset?: number;
 }) {
   const [activeTab, setActiveTab] = useState<FilterKey>("semua");
@@ -125,28 +62,84 @@ export default function SearchExperience({
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [showMentorDetail, setShowMentorDetail] = useState(false);
   const [connected, setConnected] = useState<string[]>([]);
+  const [dbPeople, setDbPeople] = useState<Person[]>([]);
   const [closing, setClosing] = useState(false);
-  /** Orang yang sedang dibuka di bottom sheet "Quick Profile" */
   const [quickPerson, setQuickPerson] = useState<Person | null>(null);
-  /** Sedang menjalankan animasi tutup bottom sheet */
   const [sheetClosing, setSheetClosing] = useState(false);
+  
   const sheetCloseTimer = useRef<number | null>(null);
-  /** Panel pencarian — dipakai untuk mendeteksi akhir animasi keluar. */
   const panelRef = useRef<HTMLDivElement>(null);
-  /** Timer cadangan kalau `animationend` tidak pernah terpanggil. */
   const closeFallback = useRef<number | null>(null);
-  /** Supaya panel hanya ditutup sekali. */
   const closeDone = useRef(false);
 
-  /**
-   * Mulai animasi keluar. Panel TIDAK langsung ditutup di sini: penutupan
-   * sebenarnya terjadi saat animasi `panelOut` selesai (onAnimationEnd),
-   * jadi tidak ada jeda diam antara "animasi selesai" dan "Home muncul".
-   */
+  // 1. Ambil data Pengguna Asli dan Daftar Kontak dari Supabase
+  useEffect(() => {
+    async function loadSearchData() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        // A. Fetch Kontak yang sudah tersambung
+        const { data: contactsData } = await supabase
+          .from("contacts")
+          .select("contact_name")
+          .eq("user_id", user.id);
+
+        if (contactsData) {
+          setConnected(contactsData.map((c) => c.contact_name));
+        }
+
+        // B. Fetch Seluruh Profil Pengguna Lain dari Database Supabase
+        const { data: profilesData, error: profileErr } = await supabase
+          .from("profiles")
+          .select("*")
+          .neq("id", user.id); // Jangan tampilkan diri sendiri di hasil pencarian
+
+        if (!profileErr && profilesData) {
+          const mappedPeople: Person[] = profilesData.map((p) => {
+            const fullName = p.full_name || p.name || "Pengguna StudyBuddy";
+            const majorStr = p.major || p.prodi || "Belum diisi";
+            const facultyStr = p.faculty || p.fakultas || "Umum";
+            const semStr = p.semester ? `Semester ${p.semester}` : "Semester -";
+
+            return {
+              id: p.id,
+              name: fullName,
+              role: majorStr,
+              major: majorStr,
+              semester: semStr,
+              category: facultyStr,
+              avatar: p.avatar_url || p.foto || "/images/figma/arya.png",
+              facultyTitle: facultyStr,
+              facultySub: majorStr,
+              followers: "100 Pengikut",
+              following: "50 Mengikuti",
+              bio: "Mari belajar dan berdiskusi bersama di StudyBuddy!",
+              sheetBio: `${fullName} adalah mahasiswa ${majorStr} di ${facultyStr}.`,
+              university: "Universitas Brawijaya",
+              detailMajor: majorStr,
+              detailSemester: p.semester ? String(p.semester) : "-",
+              skills: [["UIUX", "Frontend"], ["Design"]],
+              keywords: `${fullName.toLowerCase()} ${majorStr.toLowerCase()} ${facultyStr.toLowerCase()}`,
+            };
+          });
+
+          setDbPeople(mappedPeople);
+        }
+      } catch (err) {
+        console.error("Gagal memuat data pencarian dari Supabase:", err);
+      }
+    }
+
+    loadSearchData();
+  }, []);
+
   function requestClose() {
     if (closing || !onClose) return;
 
-    // Hormati preferensi pengguna yang mematikan animasi: langsung tutup.
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       onClose();
       return;
@@ -154,8 +147,6 @@ export default function SearchExperience({
 
     closeDone.current = false;
     setClosing(true);
-
-    // Cadangan apabila animasi CSS tidak jalan (mis. prefers-reduced-motion).
     closeFallback.current = window.setTimeout(finishClose, 700);
   }
 
@@ -180,14 +171,64 @@ export default function SearchExperience({
     };
   }, []);
 
-  function toggleConnect(name: string) {
-    setConnected((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
-    );
+  // 2. Fungsi Tambah Kontak ke Database Supabase
+  async function connect(name: string) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        alert("Anda harus login terlebih dahulu!");
+        return;
+      }
+
+      setConnected((prev) => (prev.includes(name) ? prev : [...prev, name]));
+
+      const { error } = await supabase.from("contacts").insert([
+        {
+          user_id: user.id,
+          contact_name: name,
+        },
+      ]);
+
+      if (error) {
+        console.error("Gagal menyimpan kontak ke Supabase:", error.message);
+      }
+    } catch (err) {
+      console.error("Error saat menambah kontak:", err);
+    }
   }
 
-  function connect(name: string) {
-    setConnected((prev) => (prev.includes(name) ? prev : [...prev, name]));
+  // 3. Fungsi Toggle Kontak (Tambah/Hapus) ke Database Supabase
+  async function toggleConnect(name: string) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const isAlreadyConnected = connected.includes(name);
+
+      if (isAlreadyConnected) {
+        setConnected((prev) => prev.filter((n) => n !== name));
+
+        const { error } = await supabase
+          .from("contacts")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("contact_name", name);
+
+        if (error) {
+          console.error("Gagal menghapus kontak dari Supabase:", error.message);
+        }
+      } else {
+        await connect(name);
+      }
+    } catch (err) {
+      console.error("Error saat mengubah status kontak:", err);
+    }
   }
 
   function openSheet(person: Person) {
@@ -195,7 +236,6 @@ export default function SearchExperience({
     setQuickPerson(person);
   }
 
-  /** Tutup bottom sheet: jalankan animasi meluncur turun dulu, baru di-unmount. */
   function closeSheet() {
     if (sheetCloseTimer.current !== null) return;
 
@@ -207,7 +247,6 @@ export default function SearchExperience({
     }, 240);
   }
 
-  // Bottom sheet: tutup dengan Escape + kunci scroll halaman di belakangnya.
   useEffect(() => {
     if (!quickPerson) return;
 
@@ -236,14 +275,13 @@ export default function SearchExperience({
     isEntering ? ` ${styles.panelEnter}` : ""
   }${closing ? ` ${styles.panelClosing}` : ""}`;
 
-  /** Halaman detail profil: cukup fade, tanpa animasi "search naik". */
   const detailClass = `${styles.panel} ${styles.panelFade}`;
 
   const panelStyle = {
     "--enter-offset": `${enterOffset}px`,
   } as CSSProperties;
 
-  // --- FULL PROFILE DETAIL: varian user ---
+  // Tampilan Full Profile Detail User
   if (selectedPerson) {
     return (
       <div className={detailClass}>
@@ -268,7 +306,7 @@ export default function SearchExperience({
     );
   }
 
-  // --- FULL PROFILE DETAIL: varian mentor ---
+  // Tampilan Full Profile Detail Mentor
   if (showMentorDetail) {
     return (
       <div className={detailClass}>
@@ -281,7 +319,6 @@ export default function SearchExperience({
     );
   }
 
-  // --- STATE: HASIL / KOSONG ---
   const query = searchQuery.trim().toLowerCase();
   const matches = (keywords: string) => !query || keywords.includes(query);
 
@@ -289,9 +326,10 @@ export default function SearchExperience({
     (activeTab === "semua" || activeTab === "mentor") &&
     matches(mentorKeywords);
 
+  // Sumber data utama pencarian diambil dari dbPeople (Database Supabase)
   const visiblePeople =
     activeTab === "semua" || activeTab === "teman"
-      ? people.filter((person) => matches(person.keywords))
+      ? dbPeople.filter((person) => matches(person.keywords))
       : [];
 
   const hasResults = showMentor || visiblePeople.length > 0;
@@ -302,11 +340,10 @@ export default function SearchExperience({
       className={panelClass}
       style={panelStyle}
       onAnimationEnd={(event) => {
-        // Hanya animasi milik panel itu sendiri (panelOut) yang menutup.
         if (closing && event.target === panelRef.current) finishClose();
       }}
     >
-      {/* Top bar: tombol back + kolom pencarian */}
+      {/* Top Bar */}
       <div className={styles.topBar}>
         {onClose ? (
           <button
@@ -375,7 +412,7 @@ export default function SearchExperience({
       </div>
 
       <div className={styles.panelBody}>
-        {/* Filter Tabs + Filter Slider */}
+        {/* Filter Tabs */}
         <div className={styles.tabsRow}>
           <div className={styles.tabs}>
             {filters.map((filter) => (
@@ -393,7 +430,6 @@ export default function SearchExperience({
           </div>
         </div>
 
-        {/* Content */}
         {!hasResults ? (
           <div className={styles.empty}>
             <Image
@@ -511,10 +547,7 @@ export default function SearchExperience({
         )}
       </div>
 
-      {/* ============================================================
-          BOTTOM SHEET — Quick Profile & Add Friend
-          Muncul saat tombol "Tambah Teman" pada kartu hasil ditekan.
-          ============================================================ */}
+      {/* Bottom Sheet - Quick Profile */}
       {quickPerson && (
         <div
           className={`${styles.overlay}${

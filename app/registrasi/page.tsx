@@ -1,10 +1,11 @@
-
 "use client";
 
 import { useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+// 1. Impor klien Supabase yang sudah dibuat sebelumnya
+import { supabase } from "@/app/lib/supabase"; 
 import "./registrasi.css";
 
 export default function RegistrasiPage() {
@@ -18,8 +19,9 @@ export default function RegistrasiPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false); // Tambahan state loading opsional
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
 
@@ -47,8 +49,28 @@ export default function RegistrasiPage() {
       return;
     }
 
-    // Lanjut ke halaman pilihan bidang minat
-    router.push("/bidang-minat");
+    setLoading(true);
+
+    try {
+      // 2. Kirim data registrasi ke Supabase Auth
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
+      }
+
+      // 3. Jika berhasil, otomatis trigger database akan mencatat ke tabel profiles,
+      // lalu arahkan user ke halaman pilihan bidang minat
+      router.push("/bidang-minat");
+    } catch (err) {
+      setError("Terjadi kesalahan pada sistem.");
+      setLoading(false);
+    }
   }
 
   return (
@@ -201,8 +223,9 @@ export default function RegistrasiPage() {
           <button
             className="register-submit"
             type="submit"
+            disabled={loading}
           >
-            Sign up
+            {loading ? "Memproses..." : "Sign up"}
           </button>
         </form>
 

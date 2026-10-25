@@ -5,12 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/navbar/Navbar";
 import SearchExperience from "@/components/SearchExperience";
-
-type Story = {
-  name: string;
-  emoji: string;
-  color: string;
-};
+import StorySection from "@/components/home/StorySection";
 
 type Discussion = {
   tag: string;
@@ -22,14 +17,6 @@ type Discussion = {
   time: string;
   members: number;
 };
-
-const stories: Story[] = [
-  { name: "Alya", emoji: "👩🏻‍🎓", color: "#dce9ff" },
-  { name: "Bima", emoji: "👨🏻‍💻", color: "#f9e2d5" },
-  { name: "Nadia", emoji: "👩🏽‍🎓", color: "#e7ddff" },
-  { name: "Rafi", emoji: "👨🏽‍🎓", color: "#d7f2e5" },
-  { name: "Salsa", emoji: "👩🏼‍💻", color: "#ffe7c8" },
-];
 
 const discussions: Discussion[] = [
   {
@@ -201,43 +188,7 @@ export default function HomePage() {
           </span>
         </button>
 
-        <section className="story-section home-reveal">
-          <div className="section-title-row">
-            <h2>Story</h2>
-            <button
-              className="text-link"
-              onClick={() => alert("Semua story sudah ditampilkan.")}
-            >
-              Lihat semua →
-            </button>
-          </div>
-
-          <div className="story-list">
-            {stories.map((story) => (
-              <button
-                key={story.name}
-                className="story-item"
-                onClick={() => alert(`Story ${story.name} dipilih.`)}
-              >
-                <span
-                  className="story-avatar"
-                  style={{ backgroundColor: story.color }}
-                >
-                  {story.emoji}
-                </span>
-                <span>{story.name}</span>
-              </button>
-            ))}
-
-            <button
-              className="story-item"
-              onClick={() => alert("Fitur tambah story belum tersedia.")}
-            >
-              <span className="story-add">+</span>
-              <span>Tambah</span>
-            </button>
-          </div>
-        </section>
+        <StorySection />
 
         <section className="discussion-section home-reveal">
           <div className="section-title-row">

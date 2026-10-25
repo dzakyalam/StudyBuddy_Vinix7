@@ -33,48 +33,132 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [chatList, setChatList] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // Ambil data profil pengguna langsung dari database Supabase saat halaman dimuat
+  // Daftar chat = teman yang sudah ditambahkan lewat halaman pencarian
   useEffect(() => {
     async function fetchChatData() {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-      if (authError || !user) {
+      if (authError || !user || !user.email) {
         router.replace("/login");
         return;
       }
 
-      // Ambil seluruh profil pengguna dari tabel 'profiles' di Supabase, kecuali akun yang sedang login
-      const { data: profilesData, error: dbError } = await supabase
-        .from("profiles")
-        .select("*")
-        .neq("id", user.id);
+      // Cocokkan akun login ke tabel `users` lewat email
+      const emailPattern = user.email.replace(/[\\%_]/g, "\\$&");
+      const { data: me, error: meError } = await supabase
+        .from("users")
+        .select("id")
+        .ilike("email", emailPattern)
+        .limit(1)
+        .maybeSingle();
 
-      if (dbError) {
-        console.error("Gagal memuat data chat dari database:", dbError.message);
+      if (meError || !me) {
+        console.error("Akun belum ada di tabel users:", meError?.message);
+        setErrorMsg("Akun kamu belum terdaftar di tabel users.");
         setLoading(false);
         return;
       }
 
-      if (profilesData) {
-        const loadedChats: ChatItem[] = profilesData.map((profile) => {
-          const name = profile.full_name || profile.name || "Pengguna StudyBuddy";
-          const major = profile.major || profile.prodi || "Teman StudyBuddy";
+      // A. Teman yang sudah kita tambahkan
+      const { data: friendRows, error: friendError } = await supabase
+        .from("friends")
+        .select("friend_id")
+        .eq("user_id", me.id);
 
-          return {
-            id: profile.id,
-            name: name,
-            role: "teman", // Kategori default untuk pengguna database
-            avatar: profile.avatar_url || profile.foto || "/images/figma/ilham.png",
-            isGroup: false,
-            lastMessage: `Jurusan: ${major}`,
-            slug: profile.id, // Menggunakan UUID profil sebagai slug agar langsung terhubung ke ChatRoom dinamis
-          };
-        });
-
-        setChatList(loadedChats);
+      if (friendError) {
+        console.error("Gagal memuat daftar teman:", friendError.message);
+        setErrorMsg("Gagal memuat daftar chat. Coba lagi nanti.");
+        setLoading(false);
+        return;
       }
 
+      // B. Semua pesan yang melibatkan kita (terbaru dulu), dipakai untuk
+      //    menemukan lawan bicara walau belum kita tambahkan sebagai teman
+      const { data: messageRows, error: messageError } = await supabase
+        .from("chat_messages")
+        .select("sender_id, receiver_id, text, created_at")
+        .or(`sender_id.eq.${me.id},receiver_id.eq.${me.id}`)
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      if (messageError) {
+        console.error("Gagal memuat riwayat pesan:", messageError.message);
+      }
+
+      // Pesan terakhir per lawan bicara
+      const lastByPartner = new Map<
+        number,
+        { text: string; mine: boolean; at: string }
+      >();
+      (messageRows ?? []).forEach((row) => {
+        const mine = Number(row.sender_id) === me.id;
+        const partnerId = Number(mine ? row.receiver_id : row.sender_id);
+        if (!lastByPartner.has(partnerId)) {
+          lastByPartner.set(partnerId, {
+            text: String(row.text ?? ""),
+            mine,
+            at: String(row.created_at ?? ""),
+          });
+        }
+      });
+
+      const friendIds = (friendRows ?? []).map((row) => Number(row.friend_id));
+      const allIds = Array.from(
+        new Set([...friendIds, ...Array.from(lastByPartner.keys())])
+      );
+
+      if (allIds.length === 0) {
+        setChatList([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: people, error: peopleError } = await supabase
+        .from("users")
+        .select("*")
+        .in("id", allIds);
+
+      if (peopleError) {
+        console.error("Gagal memuat data teman:", peopleError.message);
+        setErrorMsg("Gagal memuat daftar chat. Coba lagi nanti.");
+        setLoading(false);
+        return;
+      }
+
+      const loadedChats = (people ?? []).map((person) => {
+        const major = person.major || person.prodi || person.jurusan || "";
+        const last = lastByPartner.get(Number(person.id));
+
+        const item: ChatItem = {
+          id: String(person.id),
+          name: person.name || "Pengguna StudyBuddy",
+          role: "teman",
+          avatar: person.avatar_url || "/images/figma/ilham.png",
+          isGroup: false,
+          lastMessage: last
+            ? `${last.mine ? "Kamu: " : ""}${last.text}`
+            : major
+              ? `Jurusan: ${major}`
+              : "Teman StudyBuddy",
+          slug: String(person.id),
+        };
+        return { item, at: last?.at ?? "" };
+      });
+
+      // Yang punya percakapan di atas (terbaru dulu), sisanya urut nama
+      loadedChats.sort((x, y) => {
+        if (x.at && y.at) return y.at.localeCompare(x.at);
+        if (x.at) return -1;
+        if (y.at) return 1;
+        return x.item.name.localeCompare(y.item.name);
+      });
+
+      setChatList(loadedChats.map((entry) => entry.item));
       setLoading(false);
     }
 
@@ -101,7 +185,7 @@ export default function ChatPage() {
   if (loading) {
     return (
       <main className={styles.screen}>
-        <div style={{ padding: "2rem", textAlign: "center" }}>Memuat daftar chat dari database...</div>
+        <div style={{ padding: "2rem", textAlign: "center" }}>Memuat daftar chat...</div>
         <Navbar />
       </main>
     );
@@ -307,7 +391,10 @@ export default function ChatPage() {
 
           {filteredChats.length === 0 && (
             <p className={styles.emptySearch}>
-              Tidak ada pengguna lain yang ditemukan di database.
+              {errorMsg ||
+                (chatList.length === 0
+                  ? "Belum ada chat. Tambahkan teman lewat ikon di kanan atas."
+                  : "Tidak ada chat yang cocok.")}
             </p>
           )}
         </div>

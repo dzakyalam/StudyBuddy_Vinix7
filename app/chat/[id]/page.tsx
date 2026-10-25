@@ -19,48 +19,51 @@ type ContactInfo = {
   avatar: string;
 };
 
-const staticContacts: Record<string, ContactInfo> = {
-  ilham: {
-    name: "Ilham Spautra",
-    status: "Teman belajar",
-    avatar: "IS",
-  },
-  "mentor-agus": {
-    name: "Mentor Agus Setiawan",
-    status: "Mentor",
-    avatar: "AS",
-  },
-  ani: {
-    name: "ani",
-    status: "Teman belajar",
-    avatar: "A",
-  },
-  "cyber-security": {
-    name: "Grup Cyber Security",
-    status: "Grup diskusi",
-    avatar: "CS",
-  },
+type MessageRow = {
+  id: number;
+  sender_id: number;
+  receiver_id: number;
+  text: string;
+  created_at: string;
 };
 
-function getInitialWelcomeMessage(roomId: string): string {
-  return roomId === "cyber-security"
-    ? "Selamat datang di grup diskusi Cyber Security!"
-    : "Halo! Selamat datang di ruang chat StudyBuddy.";
+const MESSAGE_COLUMNS = "id, sender_id, receiver_id, text, created_at";
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function ChatRoomContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const roomId = params.id; // <-- Diperbaiki: Ditambahkan 'const'
+
+  // id di URL = id baris teman di tabel `users` (angka)
+  const otherId = Number(params.id);
+  const validId = Number.isInteger(otherId) && otherId > 0;
 
   const [contact, setContact] = useState<ContactInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [checkingContact, setCheckingContact] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [myId, setMyId] = useState<number | null>(null);
+  const [chatError, setChatError] = useState("");
 
-  // 1. Ambil data kontak & Session User saat ini
+  const contactReady = contact !== null;
+
+  function toMessage(row: MessageRow, me: number): Message {
+    return {
+      id: String(row.id),
+      text: row.text,
+      sender: row.sender_id === me ? "me" : "other",
+      time: formatTime(row.created_at),
+    };
+  }
+
+  // 1. Ambil akun yang login (baris `users`) dan data teman yang diajak chat
   useEffect(() => {
     async function initChat() {
       setCheckingContact(true);
@@ -69,158 +72,154 @@ function ChatRoomContent() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) {
+      if (!user || !user.email) {
         router.replace("/login");
         return;
       }
-      setCurrentUserId(user.id);
 
-      // A. Cek apakah ID ada di kontak statis
-      if (roomId && staticContacts[roomId]) {
-        setContact(staticContacts[roomId]);
+      const emailPattern = user.email.replace(/[\\%_]/g, "\\$&");
+      const { data: me } = await supabase
+        .from("users")
+        .select("id")
+        .ilike("email", emailPattern)
+        .limit(1)
+        .maybeSingle();
+
+      if (!me) {
+        setChatError("Akun kamu belum terdaftar di tabel users.");
+        setContact(null);
+        setCheckingContact(false);
+        return;
+      }
+      setMyId(me.id);
+
+      if (!validId) {
+        setContact(null);
         setCheckingContact(false);
         return;
       }
 
-      // B. Jika tidak ada di statis, ambil dari database Supabase berdasarkan UUID
-      if (roomId) {
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", roomId)
-          .maybeSingle();
+      const { data: person, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", otherId)
+        .maybeSingle();
 
-        if (!error && profile) {
-          const name = profile.full_name || profile.name || "Pengguna StudyBuddy";
-          const initials = name
-            .split(" ")
-            .map((n: string) => n[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2);
+      if (!error && person) {
+        const name: string = person.name || "Pengguna StudyBuddy";
+        const initials = name
+          .split(" ")
+          .filter(Boolean)
+          .map((n: string) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
 
-          setContact({
-            name: name,
-            status: profile.major || profile.prodi || "Teman StudyBuddy",
-            avatar: initials || "SB",
-          });
-        } else {
-          setContact(null);
-        }
+        setContact({
+          name,
+          status: person.major || person.prodi || "Teman StudyBuddy",
+          avatar: initials || "SB",
+        });
+      } else {
+        setContact(null);
       }
 
       setCheckingContact(false);
     }
 
     initChat();
-  }, [roomId, router]);
+  }, [otherId, validId, router]);
 
-  // Tentukan Room ID bersama yang konsisten untuk kedua akun
-  const isStatic = roomId && staticContacts[roomId];
-  const activeRoomId =
-    !isStatic && currentUserId
-      ? [currentUserId, roomId].sort().join("_")
-      : roomId;
-
-  // 2. Ambil riwayat pesan dari tabel 'messages' di Supabase
+  // 2. Ambil riwayat pesan + dengarkan pesan baru dari teman
   useEffect(() => {
-    if (!currentUserId || !activeRoomId) return;
+    if (myId === null || !contactReady) return;
+    const me: number = myId;
+    let cancelled = false;
 
     async function fetchMessages() {
       const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("room_id", activeRoomId)
+        .from("chat_messages")
+        .select(MESSAGE_COLUMNS)
+        .or(
+          `and(sender_id.eq.${me},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${me})`
+        )
         .order("created_at", { ascending: true });
 
-      if (!error && data) {
-        if (data.length === 0) {
-          setMessages([
-            {
-              id: "welcome",
-              text: getInitialWelcomeMessage(roomId),
-              sender: "other",
-              time: new Date().toLocaleTimeString("id-ID", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-            },
-          ]);
-        } else {
-          const formatted: Message[] = data.map((msg: any) => ({
-            id: msg.id,
-            text: msg.text,
-            sender: msg.sender_id === currentUserId ? "me" : "other",
-            time: new Date(msg.created_at).toLocaleTimeString("id-ID", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          }));
-          setMessages(formatted);
-        }
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Gagal memuat pesan:", error.message);
+        setChatError("Gagal memuat pesan. Coba lagi nanti.");
+      } else {
+        setMessages(((data ?? []) as MessageRow[]).map((row) => toMessage(row, me)));
       }
       setLoaded(true);
     }
 
     fetchMessages();
 
-    // Realtime subscription menggunakan activeRoomId
+    // Pesan yang kita kirim sendiri ditambahkan langsung setelah insert,
+    // jadi di sini cukup mendengarkan pesan masuk (receiver = kita).
     const channel = supabase
-      .channel(`room-${activeRoomId}`)
+      .channel(`chat-${me}-${otherId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
-          table: "messages",
-          filter: `room_id=eq.${activeRoomId}`,
+          table: "chat_messages",
+          filter: `receiver_id=eq.${me}`,
         },
         (payload) => {
-          const newMsg = payload.new as any;
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [
-              ...prev,
-              {
-                id: newMsg.id,
-                text: newMsg.text,
-                sender: newMsg.sender_id === currentUserId ? "me" : "other",
-                time: new Date(newMsg.created_at).toLocaleTimeString("id-ID", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }),
-              },
-            ];
-          });
+          const row = payload.new as MessageRow;
+          if (row.sender_id !== otherId) return;
+
+          setMessages((prev) =>
+            prev.some((m) => m.id === String(row.id))
+              ? prev
+              : [...prev, toMessage(row, me)]
+          );
         }
       )
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [activeRoomId, currentUserId, roomId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myId, otherId, contactReady]);
 
-  // 3. Fungsi Kirim Pesan ke Supabase
+  // 3. Kirim pesan
   async function handleSend(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     const text = message.trim();
-    if (!text || !contact || !currentUserId || !activeRoomId) return;
+    if (!text || myId === null || !contact) return;
+    const me: number = myId;
 
     setMessage("");
+    setChatError("");
 
-    const { error } = await supabase.from("messages").insert([
-      {
-        room_id: activeRoomId,
-        sender_id: currentUserId,
-        text: text,
-      },
-    ]);
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .insert([{ sender_id: me, receiver_id: otherId, text }])
+      .select(MESSAGE_COLUMNS)
+      .single();
 
-    if (error) {
-      console.error("Gagal mengirim pesan ke Supabase:", error.message);
+    if (error || !data) {
+      console.error("Gagal mengirim pesan:", error?.message);
+      setChatError("Pesan gagal terkirim. Coba lagi.");
+      setMessage(text);
+      return;
     }
+
+    const row = data as MessageRow;
+    setMessages((prev) =>
+      prev.some((m) => m.id === String(row.id))
+        ? prev
+        : [...prev, toMessage(row, me)]
+    );
   }
 
   if (checkingContact) {
@@ -234,7 +233,7 @@ function ChatRoomContent() {
   if (!contact) {
     return (
       <main className={styles.screen}>
-        <p style={{ padding: "24px" }}>Kontak tidak ditemukan di database.</p>
+        <p style={{ padding: "24px" }}>{chatError || "Kontak tidak ditemukan."}</p>
         <Link href="/chat" style={{ padding: "0 24px", color: "#0066cc" }}>
           Kembali ke daftar chat
         </Link>
@@ -296,6 +295,12 @@ function ChatRoomContent() {
             </div>
           ))}
       </section>
+
+      {chatError && (
+        <p style={{ padding: "8px 24px", color: "#d93025", fontSize: "13px" }}>
+          {chatError}
+        </p>
+      )}
 
       <form className={styles.composer} onSubmit={handleSend}>
         <input

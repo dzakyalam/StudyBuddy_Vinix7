@@ -14,7 +14,7 @@ import styles from "./StorySection.module.css";
 
 type StoryRow = {
   id: string;
-  user_id: string;
+  user_id: number;
   media_url: string;
   media_path: string;
   caption: string | null;
@@ -22,7 +22,7 @@ type StoryRow = {
 };
 
 type StoryGroup = {
-  userId: string;
+  userId: number;
   name: string;
   avatar: string | null;
   isMine: boolean;
@@ -51,7 +51,7 @@ function initials(name: string) {
 }
 
 export default function StorySection() {
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
   const [groups, setGroups] = useState<StoryGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -73,11 +73,30 @@ export default function StorySection() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!user || !user.email) {
       setLoading(false);
       return;
     }
-    setUserId(user.id);
+
+    // Cocokkan akun yang login (Supabase Auth) ke baris tabel `users` lewat email.
+    // Karakter khusus LIKE di-escape supaya email dicocokkan apa adanya.
+    const emailPattern = user.email.replace(/[\\%_]/g, "\\$&");
+    const { data: me, error: meError } = await supabase
+      .from("users")
+      .select("id, name, avatar_url")
+      .ilike("email", emailPattern)
+      .limit(1)
+      .maybeSingle();
+
+    if (meError || !me) {
+      console.error("Akun belum ada di tabel users:", meError?.message);
+      setError(
+        "Akun kamu belum terdaftar di tabel users, jadi Story belum bisa dipakai."
+      );
+      setLoading(false);
+      return;
+    }
+    setUserId(me.id);
 
     // Hanya story yang belum expired (RLS juga memfilter ini)
     const { data: rows, error: storiesError } = await supabase
@@ -93,25 +112,25 @@ export default function StorySection() {
     }
 
     const storyRows = (rows ?? []) as StoryRow[];
-    const ids = Array.from(new Set([...storyRows.map((r) => r.user_id), user.id]));
+    const ids = Array.from(new Set([...storyRows.map((r) => r.user_id), me.id]));
 
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url")
+    const { data: people } = await supabase
+      .from("users")
+      .select("id, name, avatar_url")
       .in("id", ids);
 
     const profileMap = new Map<
-      string,
+      number,
       { name: string; avatar: string | null }
     >();
-    (profiles ?? []).forEach((p) => {
+    (people ?? []).forEach((p) => {
       profileMap.set(p.id, {
-        name: p.full_name || "Pengguna StudyBuddy",
+        name: p.name || "Pengguna StudyBuddy",
         avatar: p.avatar_url || null,
       });
     });
 
-    const byUser = new Map<string, StoryRow[]>();
+    const byUser = new Map<number, StoryRow[]>();
     storyRows.forEach((row) => {
       byUser.set(row.user_id, [...(byUser.get(row.user_id) ?? []), row]);
     });
@@ -120,11 +139,11 @@ export default function StorySection() {
       ([uid, list]) => ({
         userId: uid,
         name:
-          uid === user.id
+          uid === me.id
             ? "Story kamu"
             : profileMap.get(uid)?.name ?? "Pengguna StudyBuddy",
         avatar: profileMap.get(uid)?.avatar ?? null,
-        isMine: uid === user.id,
+        isMine: uid === me.id,
         stories: list,
       })
     );
@@ -159,6 +178,11 @@ export default function StorySection() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+
+    if (userId === null) {
+      setError("Akun kamu belum terdaftar di tabel users.");
+      return;
+    }
 
     if (!file.type.startsWith("image/")) {
       setError("File harus berupa gambar (JPG, PNG, WEBP).");

@@ -2,51 +2,12 @@
 
 import { useRef, useState, type FormEvent, type MouseEvent } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import Navbar from "@/components/navbar/Navbar";
 import SearchExperience from "@/components/SearchExperience";
 import StorySection from "@/components/home/StorySection";
-
-type Discussion = {
-  tag: string;
-  title: string;
-  description: string;
-  author: string;
-  category: string;
-  date: string;
-  time: string;
-  members: number;
-};
-
-const discussions: Discussion[] = [
-  {
-    tag: "Diskusi",
-    title:
-      "Fundamental UI/UX Design untuk pemula dan cara penerapannya dalam project live",
-    description:
-      "Belajar dasar UI/UX bersama teman komunitas dan praktik membuat desain yang lebih menarik.",
-    author: "Fresti Herdiansyah",
-    category: "UI/UX Designer",
-    date: "27 Oktober 2026",
-    time: "18:00 - 20:00",
-    members: 12,
-  },
-  {
-    tag: "Belajar",
-    title: "Belajar Next.js dari dasar hingga membuat project pertama",
-    description:
-      "Kenali routing, komponen, dan cara membangun aplikasi web menggunakan Next.js.",
-    author: "Andi Pratama",
-    category: "Frontend Developer",
-    date: "28 Oktober 2026",
-    time: "19:00 - 21:00",
-    members: 8,
-  },
-];
+import DiscussionSection from "@/components/home/DiscussionSection";
 
 export default function HomePage() {
-  const [discussionIndex, setDiscussionIndex] = useState(0);
-  const [joined, setJoined] = useState<string[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [groupName, setGroupName] = useState("");
@@ -54,8 +15,6 @@ export default function HomePage() {
   /** Jarak search box Home ke posisi akhir top bar di view pencarian. */
   const [searchEnterOffset, setSearchEnterOffset] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
-
-  const currentDiscussion = discussions[discussionIndex];
 
   /**
    * Ukur posisi search box saat ditekan, supaya view pencarian bisa
@@ -76,12 +35,6 @@ export default function HomePage() {
     }
 
     setShowSearch(true);
-  }
-
-  function joinDiscussion(title: string) {
-    setJoined((previous) =>
-      previous.includes(title) ? previous : [...previous, title]
-    );
   }
 
   function createGroup(e: FormEvent<HTMLFormElement>) {
@@ -190,77 +143,7 @@ export default function HomePage() {
 
         <StorySection />
 
-        <section className="discussion-section home-reveal">
-          <div className="section-title-row">
-            <h2>Up Coming Discussion</h2>
-            <Link href="/room-server" className="text-link">
-              Lihat semuanya ›
-            </Link>
-          </div>
-
-          {discussions.length === 0 ? (
-            <div className="empty-state">
-              Tidak ada diskusi yang cocok dengan pencarianmu.
-            </div>
-          ) : (
-            <div className="discussion-list">
-              {discussions.map((item) => {
-                const isJoined = joined.includes(item.title);
-
-                return (
-                  <article
-                    className="discussion-card"
-                    key={item.title}
-                  >
-                    <div className="discussion-tags">
-                      <span className="tag tag-blue">
-                        ◷ {item.date}
-                      </span>
-                      <span className="tag">{item.tag}</span>
-                    </div>
-
-                    <h3>{item.title}</h3>
-                    <p className="discussion-description">
-                      {item.description}
-                    </p>
-
-                    <div className="discussion-author">
-                      <div className="author-avatar">👨🏻‍💻</div>
-                      <div className="author-info">
-                        <strong>{item.author}</strong>
-                        <span>{item.category}</span>
-                      </div>
-                      <button
-                        className="btn btn-primary join-button"
-                        onClick={() => joinDiscussion(item.title)}
-                      >
-                        {isJoined ? "Joined ✓" : "Join"}
-                      </button>
-                    </div>
-
-                    <div className="discussion-meta">
-                      <span>👥 {item.members} peserta</span>
-                      <span>◷ {item.time}</span>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="carousel-dots">
-            {discussions.map((item, index) => (
-              <button
-                key={item.title}
-                className={
-                  index === discussionIndex ? "active" : ""
-                }
-                aria-label={`Tampilkan diskusi ${index + 1}`}
-                onClick={() => setDiscussionIndex(index)}
-              />
-            ))}
-          </div>
-        </section>
+        <DiscussionSection />
 
         <section className="add-section home-reveal">
           <button

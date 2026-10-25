@@ -6,33 +6,35 @@ import Link from "next/link";
 import ProfileDetail, {
   type ProfileDetailData,
 } from "@/components/ProfileDetail";
+import { useCurrentUser } from "@/components/home/useCurrentUser";
 import { supabase } from "@/app/lib/supabase";
 import styles from "./SearchExperience.module.css";
 
-type FilterKey = "semua" | "teman" | "mentor";
+type FilterKey = "semua" | "teman" | "mentor" | "topik";
 
 type Person = {
-  id: string;
+  id: number;
   name: string;
-  role: string;
+  avatar: string;
   major: string;
   semester: string;
-  category: string;
-  avatar: string;
-  facultyTitle: string;
-  facultySub: string;
-  followers: string;
-  following: string;
-  bio: string;
-  sheetBio: string;
+  faculty: string;
   university: string;
-  detailMajor: string;
-  detailSemester: string;
-  skills: string[][];
-  keywords: string;
 };
 
-// Data mentor rekomendasi (Statis/Dummy)
+type DiscussionHit = {
+  id: number;
+  title: string;
+  tag: string;
+  hostName: string;
+  startsAt: string;
+};
+
+const FALLBACK_AVATAR = "/images/figma/arya.png";
+const RESULT_LIMIT = 30;
+const DEBOUNCE_MS = 300;
+
+// Data mentor rekomendasi (statis)
 const mentor: ProfileDetailData = {
   name: "Frenki Herlambang",
   role: "Mentor Web & UI/UX Designer",
@@ -48,7 +50,71 @@ const filters: { key: FilterKey; label: string }[] = [
   { key: "semua", label: "Semua" },
   { key: "teman", label: "Teman" },
   { key: "mentor", label: "Mentor" },
+  { key: "topik", label: "Topik" },
 ];
+
+/** Ambil string dari kolom opsional (kolom bisa saja belum ada di tabel). */
+function str(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+/** Escape karakter khusus LIKE supaya teks dicari apa adanya. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+/** Buang karakter yang merusak sintaks filter .or() milik PostgREST. */
+function sanitizeForOr(value: string): string {
+  return value.replace(/[\\%_*,()]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function toPerson(row: Record<string, unknown>): Person {
+  const semester = str(row.semester);
+  return {
+    id: Number(row.id),
+    name: str(row.name) || "Pengguna StudyBuddy",
+    avatar: str(row.avatar_url) || FALLBACK_AVATAR,
+    major: str(row.major) || str(row.prodi) || str(row.jurusan),
+    semester: semester ? `Semester ${semester}` : "",
+    faculty: str(row.faculty) || str(row.fakultas),
+    university: str(row.university) || str(row.universitas),
+  };
+}
+
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function PersonAvatar({
+  src,
+  className,
+}: {
+  src: string;
+  className: string;
+}) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      width={56}
+      height={56}
+      className={className}
+      onError={(event) => {
+        const img = event.currentTarget;
+        if (!img.src.endsWith(FALLBACK_AVATAR)) img.src = FALLBACK_AVATAR;
+      }}
+    />
+  );
+}
 
 export default function SearchExperience({
   onClose,
@@ -57,85 +123,186 @@ export default function SearchExperience({
   onClose?: () => void;
   enterOffset?: number;
 }) {
+  const { dbUser: me, loading: meLoading, error: meError } = useCurrentUser();
+
   const [activeTab, setActiveTab] = useState<FilterKey>("semua");
   const [searchQuery, setSearchQuery] = useState("");
+  const [people, setPeople] = useState<Person[]>([]);
+  const [discussions, setDiscussions] = useState<DiscussionHit[]>([]);
+  const [friendIds, setFriendIds] = useState<number[]>([]);
+  const [searching, setSearching] = useState(true);
+  const [notice, setNotice] = useState("");
+
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [showMentorDetail, setShowMentorDetail] = useState(false);
-  const [connected, setConnected] = useState<string[]>([]);
-  const [dbPeople, setDbPeople] = useState<Person[]>([]);
-  const [closing, setClosing] = useState(false);
   const [quickPerson, setQuickPerson] = useState<Person | null>(null);
   const [sheetClosing, setSheetClosing] = useState(false);
-  
+  const [closing, setClosing] = useState(false);
+
   const sheetCloseTimer = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const closeFallback = useRef<number | null>(null);
   const closeDone = useRef(false);
+  const requestId = useRef(0);
 
-  // 1. Ambil data Pengguna Asli dan Daftar Kontak dari Supabase
+  const meId = me?.id ?? null;
+
+  /* ---------------- Daftar teman milik saya ---------------- */
+
   useEffect(() => {
-    async function loadSearchData() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+    if (meId === null) return;
+    const myId: number = meId;
+    let cancelled = false;
 
-        if (!user) return;
+    async function loadFriends() {
+      const { data, error } = await supabase
+        .from("friends")
+        .select("friend_id")
+        .eq("user_id", myId);
 
-        // A. Fetch Kontak yang sudah tersambung
-        const { data: contactsData } = await supabase
-          .from("contacts")
-          .select("contact_name")
-          .eq("user_id", user.id);
+      if (cancelled) return;
 
-        if (contactsData) {
-          setConnected(contactsData.map((c) => c.contact_name));
-        }
-
-        // B. Fetch Seluruh Profil Pengguna Lain dari Database Supabase
-        const { data: profilesData, error: profileErr } = await supabase
-          .from("profiles")
-          .select("*")
-          .neq("id", user.id); // Jangan tampilkan diri sendiri di hasil pencarian
-
-        if (!profileErr && profilesData) {
-          const mappedPeople: Person[] = profilesData.map((p) => {
-            const fullName = p.full_name || p.name || "Pengguna StudyBuddy";
-            const majorStr = p.major || p.prodi || "Belum diisi";
-            const facultyStr = p.faculty || p.fakultas || "Umum";
-            const semStr = p.semester ? `Semester ${p.semester}` : "Semester -";
-
-            return {
-              id: p.id,
-              name: fullName,
-              role: majorStr,
-              major: majorStr,
-              semester: semStr,
-              category: facultyStr,
-              avatar: p.avatar_url || p.foto || "/images/figma/arya.png",
-              facultyTitle: facultyStr,
-              facultySub: majorStr,
-              followers: "100 Pengikut",
-              following: "50 Mengikuti",
-              bio: "Mari belajar dan berdiskusi bersama di StudyBuddy!",
-              sheetBio: `${fullName} adalah mahasiswa ${majorStr} di ${facultyStr}.`,
-              university: "Universitas Brawijaya",
-              detailMajor: majorStr,
-              detailSemester: p.semester ? String(p.semester) : "-",
-              skills: [["UIUX", "Frontend"], ["Design"]],
-              keywords: `${fullName.toLowerCase()} ${majorStr.toLowerCase()} ${facultyStr.toLowerCase()}`,
-            };
-          });
-
-          setDbPeople(mappedPeople);
-        }
-      } catch (err) {
-        console.error("Gagal memuat data pencarian dari Supabase:", err);
+      if (error) {
+        console.error("Gagal memuat daftar teman:", error.message);
+        return;
       }
+      setFriendIds((data ?? []).map((row) => Number(row.friend_id)));
     }
 
-    loadSearchData();
-  }, []);
+    loadFriends();
+    return () => {
+      cancelled = true;
+    };
+  }, [meId]);
+
+  /* ---------------- Pencarian (debounce, ke database) ---------------- */
+
+  useEffect(() => {
+    if (meId === null) return;
+    const myId: number = meId;
+
+    const rawTerm = searchQuery.trim();
+    const currentRequest = ++requestId.current;
+    const wantPeople = activeTab === "semua" || activeTab === "teman";
+    const wantDiscussions = activeTab === "semua" || activeTab === "topik";
+
+    async function run() {
+      setSearching(true);
+
+      // A. Cari pengguna lain berdasarkan nama
+      let nextPeople: Person[] = [];
+      if (wantPeople) {
+        let query = supabase
+          .from("users")
+          .select("*")
+          .neq("id", myId)
+          .order("name", { ascending: true })
+          .limit(RESULT_LIMIT);
+
+        if (rawTerm) {
+          query = query.ilike("name", `%${escapeLike(rawTerm)}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          console.error("Gagal mencari pengguna:", error.message);
+        } else {
+          nextPeople = (data ?? []).map((row) =>
+            toPerson(row as Record<string, unknown>)
+          );
+        }
+      }
+
+      // B. Cari diskusi yang belum selesai berdasarkan judul / tag / deskripsi
+      let nextDiscussions: DiscussionHit[] = [];
+      if (wantDiscussions) {
+        let query = supabase
+          .from("discussions")
+          .select("id, title, tag, host_name, starts_at")
+          .gte("ends_at", new Date().toISOString())
+          .order("starts_at", { ascending: true })
+          .limit(RESULT_LIMIT);
+
+        const orTerm = sanitizeForOr(rawTerm);
+        if (orTerm) {
+          query = query.or(
+            `title.ilike.*${orTerm}*,tag.ilike.*${orTerm}*,description.ilike.*${orTerm}*`
+          );
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          console.error("Gagal mencari diskusi:", error.message);
+        } else {
+          nextDiscussions = (data ?? []).map((row) => ({
+            id: Number(row.id),
+            title: str(row.title),
+            tag: str(row.tag) || "Diskusi",
+            hostName: str(row.host_name),
+            startsAt: str(row.starts_at),
+          }));
+        }
+      }
+
+      // Abaikan hasil lama kalau pengguna sudah mengetik lagi
+      if (currentRequest !== requestId.current) return;
+
+      setPeople(nextPeople);
+      setDiscussions(nextDiscussions);
+      setSearching(false);
+    }
+
+    const timer = window.setTimeout(run, rawTerm ? DEBOUNCE_MS : 0);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, activeTab, meId]);
+
+  /* ---------------- Tambah / hapus teman ---------------- */
+
+  function isFriend(personId: number) {
+    return friendIds.includes(personId);
+  }
+
+  async function addFriend(person: Person) {
+    if (meId === null || isFriend(person.id)) return;
+
+    setNotice("");
+    setFriendIds((prev) => [...prev, person.id]);
+
+    const { error } = await supabase
+      .from("friends")
+      .insert([{ user_id: meId, friend_id: person.id }]);
+
+    if (error) {
+      console.error("Gagal menambah teman:", error.message);
+      setFriendIds((prev) => prev.filter((id) => id !== person.id));
+      setNotice("Gagal menambah teman. Coba lagi nanti.");
+    }
+  }
+
+  async function removeFriend(person: Person) {
+    if (meId === null || !isFriend(person.id)) return;
+
+    setNotice("");
+    setFriendIds((prev) => prev.filter((id) => id !== person.id));
+
+    const { error } = await supabase
+      .from("friends")
+      .delete()
+      .eq("user_id", meId)
+      .eq("friend_id", person.id);
+
+    if (error) {
+      console.error("Gagal menghapus teman:", error.message);
+      setFriendIds((prev) => [...prev, person.id]);
+      setNotice("Gagal menghapus teman. Coba lagi nanti.");
+    }
+  }
+
+  function toggleFriend(person: Person) {
+    return isFriend(person.id) ? removeFriend(person) : addFriend(person);
+  }
+
+  /* ---------------- Animasi tutup panel ---------------- */
 
   function requestClose() {
     if (closing || !onClose) return;
@@ -171,65 +338,7 @@ export default function SearchExperience({
     };
   }, []);
 
-  // 2. Fungsi Tambah Kontak ke Database Supabase
-  async function connect(name: string) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        alert("Anda harus login terlebih dahulu!");
-        return;
-      }
-
-      setConnected((prev) => (prev.includes(name) ? prev : [...prev, name]));
-
-      const { error } = await supabase.from("contacts").insert([
-        {
-          user_id: user.id,
-          contact_name: name,
-        },
-      ]);
-
-      if (error) {
-        console.error("Gagal menyimpan kontak ke Supabase:", error.message);
-      }
-    } catch (err) {
-      console.error("Error saat menambah kontak:", err);
-    }
-  }
-
-  // 3. Fungsi Toggle Kontak (Tambah/Hapus) ke Database Supabase
-  async function toggleConnect(name: string) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      const isAlreadyConnected = connected.includes(name);
-
-      if (isAlreadyConnected) {
-        setConnected((prev) => prev.filter((n) => n !== name));
-
-        const { error } = await supabase
-          .from("contacts")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("contact_name", name);
-
-        if (error) {
-          console.error("Gagal menghapus kontak dari Supabase:", error.message);
-        }
-      } else {
-        await connect(name);
-      }
-    } catch (err) {
-      console.error("Error saat mengubah status kontak:", err);
-    }
-  }
+  /* ---------------- Bottom sheet profil singkat ---------------- */
 
   function openSheet(person: Person) {
     setSheetClosing(false);
@@ -269,6 +378,8 @@ export default function SearchExperience({
     };
   }, [quickPerson]);
 
+  /* ---------------- Render ---------------- */
+
   const isEntering = enterOffset > 0 && !closing;
 
   const panelClass = `${styles.panel}${
@@ -281,32 +392,31 @@ export default function SearchExperience({
     "--enter-offset": `${enterOffset}px`,
   } as CSSProperties;
 
-  // Tampilan Full Profile Detail User
+  // Detail profil pengguna
   if (selectedPerson) {
     return (
       <div className={detailClass}>
         <ProfileDetail
           variant="user"
           onBack={() => setSelectedPerson(null)}
-          connected={connected.includes(selectedPerson.name)}
-          onToggleConnect={() => toggleConnect(selectedPerson.name)}
+          connected={isFriend(selectedPerson.id)}
+          onToggleConnect={() => toggleFriend(selectedPerson)}
           data={{
             name: selectedPerson.name,
-            role: selectedPerson.role,
+            role: selectedPerson.major || "Pengguna StudyBuddy",
             avatar: selectedPerson.avatar,
-            bio: selectedPerson.bio,
-            followers: selectedPerson.followers,
-            following: selectedPerson.following,
-            facultyTitle: selectedPerson.facultyTitle,
-            facultySub: selectedPerson.facultySub,
-            mutualText: "3 teman bersama",
+            bio: "Mari belajar dan berdiskusi bersama di StudyBuddy!",
+            followers: "0 Pengikut",
+            following: "0 Mengikuti",
+            facultyTitle: selectedPerson.faculty || "StudyBuddy",
+            facultySub: selectedPerson.major || "-",
           }}
         />
       </div>
     );
   }
 
-  // Tampilan Full Profile Detail Mentor
+  // Detail profil mentor
   if (showMentorDetail) {
     return (
       <div className={detailClass}>
@@ -319,20 +429,20 @@ export default function SearchExperience({
     );
   }
 
-  const query = searchQuery.trim().toLowerCase();
-  const matches = (keywords: string) => !query || keywords.includes(query);
-
+  const lowerQuery = searchQuery.trim().toLowerCase();
   const showMentor =
     (activeTab === "semua" || activeTab === "mentor") &&
-    matches(mentorKeywords);
+    (!lowerQuery || mentorKeywords.includes(lowerQuery));
 
-  // Sumber data utama pencarian diambil dari dbPeople (Database Supabase)
   const visiblePeople =
-    activeTab === "semua" || activeTab === "teman"
-      ? dbPeople.filter((person) => matches(person.keywords))
-      : [];
+    activeTab === "semua" || activeTab === "teman" ? people : [];
+  const visibleDiscussions =
+    activeTab === "semua" || activeTab === "topik" ? discussions : [];
 
-  const hasResults = showMentor || visiblePeople.length > 0;
+  const hasResults =
+    showMentor || visiblePeople.length > 0 || visibleDiscussions.length > 0;
+
+  const isLoading = meLoading || (meId !== null && searching);
 
   return (
     <div
@@ -379,7 +489,7 @@ export default function SearchExperience({
         <div className={styles.searchBar}>
           <input
             type="search"
-            placeholder="Cari teman atau mentor"
+            placeholder="Cari teman, mentor atau topik"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={styles.searchInput}
@@ -430,7 +540,23 @@ export default function SearchExperience({
           </div>
         </div>
 
-        {!hasResults ? (
+        {meError && (
+          <p className={styles.emptyText} style={{ color: "#d93025" }}>
+            {meError} Pencarian teman dan topik belum bisa dipakai.
+          </p>
+        )}
+
+        {notice && (
+          <p className={styles.emptyText} style={{ color: "#d93025" }}>
+            {notice}
+          </p>
+        )}
+
+        {isLoading && !hasResults ? (
+          <div className={styles.empty}>
+            <p className={styles.emptyText}>Mencari...</p>
+          </div>
+        ) : !hasResults ? (
           <div className={styles.empty}>
             <Image
               src="/images/figma/empty_illustration.png"
@@ -479,27 +605,27 @@ export default function SearchExperience({
 
             {visiblePeople.map((person) => (
               <div
-                key={person.id}
+                key={`user-${person.id}`}
                 className={styles.card}
                 onClick={() => setSelectedPerson(person)}
               >
                 <div className={styles.cardLeft}>
-                  <Image
-                    src={person.avatar}
-                    alt={person.name}
-                    width={56}
-                    height={56}
-                    className={styles.avatar}
-                  />
+                  <PersonAvatar src={person.avatar} className={styles.avatar} />
                   <div className={styles.cardInfo}>
                     <h4 className={styles.name}>{person.name}</h4>
-                    <p className={styles.major}>{person.major}</p>
-                    <p className={styles.sem}>{person.semester}</p>
+                    {person.major && (
+                      <p className={styles.major}>{person.major}</p>
+                    )}
+                    {person.semester && (
+                      <p className={styles.sem}>{person.semester}</p>
+                    )}
                   </div>
                 </div>
 
                 <div className={styles.cardRight}>
-                  <span className={styles.category}>{person.category}</span>
+                  {person.faculty && (
+                    <span className={styles.category}>{person.faculty}</span>
+                  )}
 
                   <button
                     type="button"
@@ -509,37 +635,30 @@ export default function SearchExperience({
                       openSheet(person);
                     }}
                   >
-                    {connected.includes(person.name)
-                      ? "Tersambung ✓"
-                      : "Tambah Teman"}
+                    {isFriend(person.id) ? "Tersambung ✓" : "Tambah Teman"}
                   </button>
+                </div>
+              </div>
+            ))}
 
-                  <div className={styles.mutual}>
-                    <span className={styles.mutualText}>3 teman bersama</span>
-                    <div className={styles.mutualAvatars}>
-                      <Image
-                        src="/images/figma/mutual_1.png"
-                        alt=""
-                        width={18}
-                        height={18}
-                        className={styles.mutualAvatar}
-                      />
-                      <Image
-                        src="/images/figma/mutual_2.png"
-                        alt=""
-                        width={18}
-                        height={18}
-                        className={styles.mutualAvatar}
-                      />
-                      <Image
-                        src="/images/figma/mutual_3.png"
-                        alt=""
-                        width={18}
-                        height={18}
-                        className={styles.mutualAvatar}
-                      />
-                    </div>
+            {visibleDiscussions.map((item) => (
+              <div
+                key={`discussion-${item.id}`}
+                className={styles.card}
+                style={{ cursor: "default" }}
+              >
+                <div className={styles.cardLeft}>
+                  <div className={styles.cardInfo}>
+                    <h4 className={styles.name}>{item.title}</h4>
+                    <p className={styles.major}>
+                      {item.hostName ? `Host: ${item.hostName}` : "Diskusi"}
+                    </p>
+                    <p className={styles.sem}>{formatDate(item.startsAt)}</p>
                   </div>
+                </div>
+
+                <div className={styles.cardRight}>
+                  <span className={styles.category}>{item.tag}</span>
                 </div>
               </div>
             ))}
@@ -547,7 +666,7 @@ export default function SearchExperience({
         )}
       </div>
 
-      {/* Bottom Sheet - Quick Profile */}
+      {/* Bottom Sheet - Profil singkat */}
       {quickPerson && (
         <div
           className={`${styles.overlay}${
@@ -567,48 +686,34 @@ export default function SearchExperience({
             <span className={styles.handle} aria-hidden="true" />
 
             <div className={styles.sheetBody}>
-              <Image
+              <PersonAvatar
                 src={quickPerson.avatar}
-                alt={quickPerson.name}
-                width={96}
-                height={96}
                 className={styles.sheetAvatar}
               />
               <h3 className={styles.sheetName}>{quickPerson.name}</h3>
-              <p className={styles.sheetBio}>{quickPerson.sheetBio}</p>
-
-              <div className={styles.skillRows}>
-                {quickPerson.skills.map((row, rowIndex) => (
-                  <div className={styles.skillRow} key={rowIndex}>
-                    {row.map((skill, skillIndex) => (
-                      <span
-                        className={styles.skillTag}
-                        key={`${skill}-${skillIndex}`}
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                ))}
-              </div>
+              <p className={styles.sheetBio}>
+                {quickPerson.major
+                  ? `${quickPerson.name} adalah mahasiswa ${quickPerson.major}.`
+                  : "Mari belajar dan berdiskusi bersama di StudyBuddy!"}
+              </p>
 
               <div className={styles.infoBox}>
                 <div className={styles.infoRow}>
                   <span className={styles.infoLabel}>Universitas</span>
                   <span className={styles.infoValue}>
-                    {quickPerson.university}
+                    {quickPerson.university || "-"}
                   </span>
                 </div>
                 <div className={styles.infoRow}>
                   <span className={styles.infoLabel}>Jurusan</span>
                   <span className={styles.infoValue}>
-                    {quickPerson.detailMajor}
+                    {quickPerson.major || "-"}
                   </span>
                 </div>
                 <div className={styles.infoRow}>
                   <span className={styles.infoLabel}>Semester</span>
                   <span className={styles.infoValue}>
-                    {quickPerson.detailSemester}
+                    {quickPerson.semester.replace("Semester ", "") || "-"}
                   </span>
                 </div>
               </div>
@@ -619,13 +724,11 @@ export default function SearchExperience({
                 type="button"
                 className={styles.addFriendBtn}
                 onClick={() => {
-                  connect(quickPerson.name);
+                  toggleFriend(quickPerson);
                   closeSheet();
                 }}
               >
-                {connected.includes(quickPerson.name)
-                  ? "Tersambung ✓"
-                  : "Add Friend"}
+                {isFriend(quickPerson.id) ? "Tersambung ✓" : "Add Friend"}
               </button>
 
               <Link

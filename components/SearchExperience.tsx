@@ -30,6 +30,12 @@ type DiscussionHit = {
   startsAt: string;
 };
 
+type GroupHit = {
+  id: number;
+  name: string;
+  avatarUrl: string;
+};
+
 const FALLBACK_AVATAR = "/images/figma/arya.png";
 const RESULT_LIMIT = 30;
 const DEBOUNCE_MS = 300;
@@ -53,19 +59,16 @@ const filters: { key: FilterKey; label: string }[] = [
   { key: "topik", label: "Topik" },
 ];
 
-/** Ambil string dari kolom opsional (kolom bisa saja belum ada di tabel). */
 function str(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number") return String(value);
   return "";
 }
 
-/** Escape karakter khusus LIKE supaya teks dicari apa adanya. */
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&");
 }
 
-/** Buang karakter yang merusak sintaks filter .or() milik PostgREST. */
 function sanitizeForOr(value: string): string {
   return value.replace(/[\\%_*,()]/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -129,6 +132,8 @@ export default function SearchExperience({
   const [searchQuery, setSearchQuery] = useState("");
   const [people, setPeople] = useState<Person[]>([]);
   const [discussions, setDiscussions] = useState<DiscussionHit[]>([]);
+  const [groups, setGroups] = useState<GroupHit[]>([]);
+  const [joinedGroupIds, setJoinedGroupIds] = useState<number[]>([]);
   const [friendIds, setFriendIds] = useState<number[]>([]);
   const [searching, setSearching] = useState(true);
   const [notice, setNotice] = useState("");
@@ -147,29 +152,33 @@ export default function SearchExperience({
 
   const meId = me?.id ?? null;
 
-  /* ---------------- Daftar teman milik saya ---------------- */
+  /* ---------------- Daftar teman & grup milik saya ---------------- */
 
   useEffect(() => {
     if (meId === null) return;
     const myId: number = meId;
     let cancelled = false;
 
-    async function loadFriends() {
-      const { data, error } = await supabase
+    async function loadUserData() {
+      // Load Teman
+      const { data: friendData } = await supabase
         .from("friends")
         .select("friend_id")
         .eq("user_id", myId);
 
+      // Load Grup tempat saya bergabung
+      const { data: memberData } = await supabase
+        .from("chat_group_members")
+        .select("group_id")
+        .eq("user_id", myId);
+
       if (cancelled) return;
 
-      if (error) {
-        console.error("Gagal memuat daftar teman:", error.message);
-        return;
-      }
-      setFriendIds((data ?? []).map((row) => Number(row.friend_id)));
+      setFriendIds((friendData ?? []).map((row) => Number(row.friend_id)));
+      setJoinedGroupIds((memberData ?? []).map((row) => Number(row.group_id)));
     }
 
-    loadFriends();
+    loadUserData();
     return () => {
       cancelled = true;
     };
@@ -204,16 +213,14 @@ export default function SearchExperience({
         }
 
         const { data, error } = await query;
-        if (error) {
-          console.error("Gagal mencari pengguna:", error.message);
-        } else {
+        if (!error) {
           nextPeople = (data ?? []).map((row) =>
             toPerson(row as Record<string, unknown>)
           );
         }
       }
 
-      // B. Cari diskusi yang belum selesai berdasarkan judul / tag / deskripsi
+      // B. Cari diskusi
       let nextDiscussions: DiscussionHit[] = [];
       if (wantDiscussions) {
         let query = supabase
@@ -231,9 +238,7 @@ export default function SearchExperience({
         }
 
         const { data, error } = await query;
-        if (error) {
-          console.error("Gagal mencari diskusi:", error.message);
-        } else {
+        if (!error) {
           nextDiscussions = (data ?? []).map((row) => ({
             id: Number(row.id),
             title: str(row.title),
@@ -244,17 +249,60 @@ export default function SearchExperience({
         }
       }
 
-      // Abaikan hasil lama kalau pengguna sudah mengetik lagi
+      // C. [TAMBAHAN] Cari grup dari chat_groups
+      let nextGroups: GroupHit[] = [];
+      if (activeTab === "semua" || activeTab === "topik") {
+        let groupQuery = supabase
+          .from("chat_groups")
+          .select("id, name, avatar_url")
+          .limit(RESULT_LIMIT);
+
+        if (rawTerm) {
+          groupQuery = groupQuery.ilike("name", `%${escapeLike(rawTerm)}%`);
+        }
+
+        const { data: groupData, error: groupErr } = await groupQuery;
+        if (!groupErr) {
+          nextGroups = (groupData ?? []).map((g) => ({
+            id: Number(g.id),
+            name: str(g.name),
+            avatarUrl: str(g.avatar_url) || "/images/figma/ilham.png",
+          }));
+        }
+      }
+
       if (currentRequest !== requestId.current) return;
 
       setPeople(nextPeople);
       setDiscussions(nextDiscussions);
+      setGroups(nextGroups);
       setSearching(false);
     }
 
     const timer = window.setTimeout(run, rawTerm ? DEBOUNCE_MS : 0);
     return () => window.clearTimeout(timer);
   }, [searchQuery, activeTab, meId]);
+
+  /* ---------------- Gabung Grup ---------------- */
+
+  async function joinGroup(groupId: number) {
+    if (meId === null || joinedGroupIds.includes(groupId)) return;
+
+    setJoinedGroupIds((prev) => [...prev, groupId]);
+
+    const { error } = await supabase
+      .from("chat_group_members")
+      .insert([{ group_id: groupId, user_id: meId }]);
+
+    if (error) {
+      console.error("Gagal bergabung ke grup:", error.message);
+      setJoinedGroupIds((prev) => prev.filter((id) => id !== groupId));
+      setNotice("Gagal bergabung ke grup. Coba lagi nanti.");
+    } else {
+      setNotice("Berhasil bergabung! Grup sudah tersedia di menu Chat.");
+      setTimeout(() => setNotice(""), 3000);
+    }
+  }
 
   /* ---------------- Tambah / hapus teman ---------------- */
 
@@ -392,7 +440,6 @@ export default function SearchExperience({
     "--enter-offset": `${enterOffset}px`,
   } as CSSProperties;
 
-  // Detail profil pengguna
   if (selectedPerson) {
     return (
       <div className={detailClass}>
@@ -416,7 +463,6 @@ export default function SearchExperience({
     );
   }
 
-  // Detail profil mentor
   if (showMentorDetail) {
     return (
       <div className={detailClass}>
@@ -438,9 +484,14 @@ export default function SearchExperience({
     activeTab === "semua" || activeTab === "teman" ? people : [];
   const visibleDiscussions =
     activeTab === "semua" || activeTab === "topik" ? discussions : [];
+  const visibleGroups =
+    activeTab === "semua" || activeTab === "topik" ? groups : [];
 
   const hasResults =
-    showMentor || visiblePeople.length > 0 || visibleDiscussions.length > 0;
+    showMentor ||
+    visiblePeople.length > 0 ||
+    visibleDiscussions.length > 0 ||
+    visibleGroups.length > 0;
 
   const isLoading = meLoading || (meId !== null && searching);
 
@@ -489,7 +540,7 @@ export default function SearchExperience({
         <div className={styles.searchBar}>
           <input
             type="search"
-            placeholder="Cari teman, mentor atau topik"
+            placeholder="Cari teman, mentor, grup atau topik"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={styles.searchInput}
@@ -547,7 +598,7 @@ export default function SearchExperience({
         )}
 
         {notice && (
-          <p className={styles.emptyText} style={{ color: "#d93025" }}>
+          <p className={styles.emptyText} style={{ color: "#0066cc", fontWeight: "bold" }}>
             {notice}
           </p>
         )}
@@ -569,6 +620,7 @@ export default function SearchExperience({
           </div>
         ) : (
           <div className={styles.list}>
+            {/* Rekomendasi Mentor */}
             {showMentor && (
               <div
                 className={styles.mentorCard}
@@ -603,6 +655,30 @@ export default function SearchExperience({
               </div>
             )}
 
+            {/* Hasil Grup Komunitas */}
+            {visibleGroups.map((group) => (
+              <div key={`group-${group.id}`} className={styles.card}>
+                <div className={styles.cardLeft}>
+                  <PersonAvatar src={group.avatarUrl} className={styles.avatar} />
+                  <div className={styles.cardInfo}>
+                    <h4 className={styles.name}>{group.name}</h4>
+                    <p className={styles.major}>Grup Komunitas</p>
+                  </div>
+                </div>
+
+                <div className={styles.cardRight}>
+                  <button
+                    type="button"
+                    className={styles.addBtn}
+                    onClick={() => joinGroup(group.id)}
+                  >
+                    {joinedGroupIds.includes(group.id) ? "Bergabung ✓" : "Gabung"}
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {/* Hasil Pengguna / Teman */}
             {visiblePeople.map((person) => (
               <div
                 key={`user-${person.id}`}
@@ -641,6 +717,7 @@ export default function SearchExperience({
               </div>
             ))}
 
+            {/* Hasil Diskusi Topik */}
             {visibleDiscussions.map((item) => (
               <div
                 key={`discussion-${item.id}`}

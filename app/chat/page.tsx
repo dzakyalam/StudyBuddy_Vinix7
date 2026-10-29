@@ -35,7 +35,6 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Daftar chat = teman yang sudah ditambahkan lewat halaman pencarian
   useEffect(() => {
     async function fetchChatData() {
       const {
@@ -77,8 +76,7 @@ export default function ChatPage() {
         return;
       }
 
-      // B. Semua pesan yang melibatkan kita (terbaru dulu), dipakai untuk
-      //    menemukan lawan bicara walau belum kita tambahkan sebagai teman
+      // B. Semua pesan pribadi yang melibatkan kita
       const { data: messageRows, error: messageError } = await supabase
         .from("chat_messages")
         .select("sender_id, receiver_id, text, created_at")
@@ -112,53 +110,97 @@ export default function ChatPage() {
         new Set([...friendIds, ...Array.from(lastByPartner.keys())])
       );
 
-      if (allIds.length === 0) {
-        setChatList([]);
-        setLoading(false);
-        return;
+      let loadedChats: { item: ChatItem; at: string }[] = [];
+
+      if (allIds.length > 0) {
+        const { data: people, error: peopleError } = await supabase
+          .from("users")
+          .select("*")
+          .in("id", allIds);
+
+        if (!peopleError && people) {
+          loadedChats = people.map((person) => {
+            const major = person.major || person.prodi || person.jurusan || "";
+            const last = lastByPartner.get(Number(person.id));
+
+            const item: ChatItem = {
+              id: String(person.id),
+              name: person.name || "Pengguna StudyBuddy",
+              role: "teman",
+              avatar: person.avatar_url || "/images/figma/ilham.png",
+              isGroup: false,
+              lastMessage: last
+                ? `${last.mine ? "Kamu: " : ""}${last.text}`
+                : major
+                ? `Jurusan: ${major}`
+                : "Teman StudyBuddy",
+              slug: String(person.id),
+            };
+            return { item, at: last?.at ?? "" };
+          });
+        }
       }
 
-      const { data: people, error: peopleError } = await supabase
-        .from("users")
-        .select("*")
-        .in("id", allIds);
+      // C. Ambil data grup tempat user tergabung
+      const { data: groupMemberRows } = await supabase
+        .from("chat_group_members")
+        .select("group_id")
+        .eq("user_id", me.id);
 
-      if (peopleError) {
-        console.error("Gagal memuat data teman:", peopleError.message);
-        setErrorMsg("Gagal memuat daftar chat. Coba lagi nanti.");
-        setLoading(false);
-        return;
+      const groupIds = (groupMemberRows ?? []).map((row) => Number(row.group_id));
+      let groupChats: { item: ChatItem; at: string }[] = [];
+
+      if (groupIds.length > 0) {
+        const { data: groupsData, error: groupsError } = await supabase
+          .from("chat_groups")
+          .select("*")
+          .in("id", groupIds);
+
+        if (!groupsError && groupsData) {
+          const { data: groupMsgRows } = await supabase
+            .from("chat_messages")
+            .select("group_id, text, created_at")
+            .in("group_id", groupIds)
+            .order("created_at", { ascending: false });
+
+          const lastByGroup = new Map<number, { text: string; at: string }>();
+          (groupMsgRows ?? []).forEach((row) => {
+            if (row.group_id && !lastByGroup.has(Number(row.group_id))) {
+              lastByGroup.set(Number(row.group_id), {
+                text: String(row.text ?? ""),
+                at: String(row.created_at ?? ""),
+              });
+            }
+          });
+
+          groupChats = groupsData.map((group) => {
+            const last = lastByGroup.get(Number(group.id));
+            const item: ChatItem = {
+              id: `group-${group.id}`,
+              name: group.name,
+              role: "komunitas",
+              avatar: group.avatar_url || "/images/figma/ilham.png",
+              isGroup: true,
+              lastMessage: last ? last.text : "Grup baru dibuat",
+              slug: `group-${group.id}`,
+            };
+            return { item, at: last?.at ?? "" };
+          });
+        }
       }
 
-      const loadedChats = (people ?? []).map((person) => {
-        const major = person.major || person.prodi || person.jurusan || "";
-        const last = lastByPartner.get(Number(person.id));
+      // D. Gabungkan chat pribadi dan chat grup
+      const allLoadedChats = [...loadedChats, ...groupChats];
 
-        const item: ChatItem = {
-          id: String(person.id),
-          name: person.name || "Pengguna StudyBuddy",
-          role: "teman",
-          avatar: person.avatar_url || "/images/figma/ilham.png",
-          isGroup: false,
-          lastMessage: last
-            ? `${last.mine ? "Kamu: " : ""}${last.text}`
-            : major
-              ? `Jurusan: ${major}`
-              : "Teman StudyBuddy",
-          slug: String(person.id),
-        };
-        return { item, at: last?.at ?? "" };
-      });
-
-      // Yang punya percakapan di atas (terbaru dulu), sisanya urut nama
-      loadedChats.sort((x, y) => {
+      // Urutkan berdasarkan pesan terbaru, lalu nama
+      allLoadedChats.sort((x, y) => {
         if (x.at && y.at) return y.at.localeCompare(x.at);
         if (x.at) return -1;
         if (y.at) return 1;
         return x.item.name.localeCompare(y.item.name);
       });
 
-      setChatList(loadedChats.map((entry) => entry.item));
+      setChatList(allLoadedChats.map((entry) => entry.item));
       setLoading(false);
     }
 

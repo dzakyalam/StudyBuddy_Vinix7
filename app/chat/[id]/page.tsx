@@ -10,6 +10,7 @@ type Message = {
   id: string;
   text: string;
   sender: "me" | "other";
+  senderName?: string; // Nama pengirim untuk ditampilkan di grup
   time: string;
 };
 
@@ -17,17 +18,20 @@ type ContactInfo = {
   name: string;
   status: string;
   avatar: string;
+  isGroup: boolean;
 };
 
 type MessageRow = {
   id: number;
   sender_id: number;
-  receiver_id: number;
+  receiver_id: number | null;
+  group_id: number | null;
   text: string;
   created_at: string;
+  users?: { name: string } | null; // Join tabel users untuk nama pengirim di grup
 };
 
-const MESSAGE_COLUMNS = "id, sender_id, receiver_id, text, created_at";
+const MESSAGE_COLUMNS = "id, sender_id, receiver_id, group_id, text, created_at";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("id-ID", {
@@ -40,9 +44,10 @@ function ChatRoomContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
-  // id di URL = id baris teman di tabel `users` (angka)
-  const otherId = Number(params.id);
-  const validId = Number.isInteger(otherId) && otherId > 0;
+  const slug = params.id; // Bisa berupa angka (personal) atau "group-X" (grup)
+  const isGroup = slug.startsWith("group-");
+  const targetId = isGroup ? Number(slug.replace("group-", "")) : Number(slug);
+  const validTarget = Number.isInteger(targetId) && targetId > 0;
 
   const [contact, setContact] = useState<ContactInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,16 +59,25 @@ function ChatRoomContent() {
 
   const contactReady = contact !== null;
 
-  function toMessage(row: MessageRow, me: number): Message {
+function toMessage(row: any, me: number): Message {
+    const isMe = row.sender_id === me;
+    
+    const senderObj = row.sender_id;
+    const senderName = 
+      typeof senderObj === "object" && senderObj !== null && "name" in senderObj
+        ? (senderObj as { name: string }).name 
+        : "Anggota";
+
     return {
       id: String(row.id),
       text: row.text,
-      sender: row.sender_id === me ? "me" : "other",
+      sender: isMe ? "me" : "other",
+      senderName,
       time: formatTime(row.created_at),
     };
   }
 
-  // 1. Ambil akun yang login (baris `users`) dan data teman yang diajak chat
+  // 1. Inisialisasi Akun & Data Kontak / Grup
   useEffect(() => {
     async function initChat() {
       setCheckingContact(true);
@@ -93,57 +107,83 @@ function ChatRoomContent() {
       }
       setMyId(me.id);
 
-      if (!validId) {
+      if (!validTarget) {
         setContact(null);
         setCheckingContact(false);
         return;
       }
 
-      const { data: person, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", otherId)
-        .maybeSingle();
+      if (isGroup) {
+        // Ambil data grup
+        const { data: group, error } = await supabase
+          .from("chat_groups")
+          .select("*")
+          .eq("id", targetId)
+          .maybeSingle();
 
-      if (!error && person) {
-        const name: string = person.name || "Pengguna StudyBuddy";
-        const initials = name
-          .split(" ")
-          .filter(Boolean)
-          .map((n: string) => n[0])
-          .join("")
-          .toUpperCase()
-          .slice(0, 2);
-
-        setContact({
-          name,
-          status: person.major || person.prodi || "Teman StudyBuddy",
-          avatar: initials || "SB",
-        });
+        if (!error && group) {
+          setContact({
+            name: group.name,
+            status: "Grup Komunitas StudyBuddy",
+            avatar: "👥",
+            isGroup: true,
+          });
+        } else {
+          setContact(null);
+        }
       } else {
-        setContact(null);
+        // Ambil data personal teman
+        const { data: person, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", targetId)
+          .maybeSingle();
+
+        if (!error && person) {
+          const name: string = person.name || "Pengguna StudyBuddy";
+          const initials = name
+            .split(" ")
+            .filter(Boolean)
+            .map((n: string) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+
+          setContact({
+            name,
+            status: person.major || person.prodi || "Teman StudyBuddy",
+            avatar: initials || "SB",
+            isGroup: false,
+          });
+        } else {
+          setContact(null);
+        }
       }
 
       setCheckingContact(false);
     }
 
     initChat();
-  }, [otherId, validId, router]);
+  }, [slug, isGroup, targetId, validTarget, router]);
 
-  // 2. Ambil riwayat pesan + dengarkan pesan baru dari teman
+  // 2. Ambil Riwayat Pesan & Realtime Listener
   useEffect(() => {
     if (myId === null || !contactReady) return;
     const me: number = myId;
     let cancelled = false;
 
     async function fetchMessages() {
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select(MESSAGE_COLUMNS)
-        .or(
-          `and(sender_id.eq.${me},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${me})`
-        )
-        .order("created_at", { ascending: true });
+      let query = supabase.from("chat_messages").select(MESSAGE_COLUMNS);
+
+      if (isGroup) {
+        query = query.eq("group_id", targetId);
+      } else {
+        query = query.or(
+          `and(sender_id.eq.${me},receiver_id.eq.${targetId}),and(sender_id.eq.${targetId},receiver_id.eq.${me})`
+        );
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: true });
 
       if (cancelled) return;
 
@@ -151,33 +191,50 @@ function ChatRoomContent() {
         console.error("Gagal memuat pesan:", error.message);
         setChatError("Gagal memuat pesan. Coba lagi nanti.");
       } else {
-        setMessages(((data ?? []) as MessageRow[]).map((row) => toMessage(row, me)));
+        setMessages(((data ?? []) as unknown as MessageRow[]).map((row) => toMessage(row, me)));
       }
       setLoaded(true);
     }
 
     fetchMessages();
 
-    // Pesan yang kita kirim sendiri ditambahkan langsung setelah insert,
-    // jadi di sini cukup mendengarkan pesan masuk (receiver = kita).
+    // Setup Realtime Channel
+    const channelName = isGroup ? `group-${targetId}` : `chat-${me}-${targetId}`;
+    const filterCondition = isGroup ? `group_id=eq.${targetId}` : `receiver_id=eq.${me}`;
+
     const channel = supabase
-      .channel(`chat-${me}-${otherId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "chat_messages",
-          filter: `receiver_id=eq.${me}`,
+          filter: filterCondition,
         },
-        (payload) => {
+        async (payload) => {
           const row = payload.new as MessageRow;
-          if (row.sender_id !== otherId) return;
+          
+          // Jika chat personal, pastikan pengirimnya sesuai
+          if (!isGroup && row.sender_id !== targetId) return;
+          // Jika chat grup, abaikan pesan yang dikirim oleh diri sendiri (karena sudah ditangani saat handleSend)
+          if (isGroup && row.sender_id === me) return;
+
+          // Ambil nama pengirim jika chat grup agar realtime-nya akurat
+          let senderData = row;
+          if (isGroup) {
+            const { data: userSender } = await supabase
+              .from("users")
+              .select("name")
+              .eq("id", row.sender_id)
+              .maybeSingle();
+            senderData = { ...row, users: userSender };
+          }
 
           setMessages((prev) =>
-            prev.some((m) => m.id === String(row.id))
+            prev.some((m) => m.id === String(senderData.id))
               ? prev
-              : [...prev, toMessage(row, me)]
+              : [...prev, toMessage(senderData, me)]
           );
         }
       )
@@ -187,10 +244,9 @@ function ChatRoomContent() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myId, otherId, contactReady]);
+  }, [myId, targetId, isGroup, contactReady]);
 
-  // 3. Kirim pesan
+  // 3. Kirim Pesan
   async function handleSend(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -201,9 +257,13 @@ function ChatRoomContent() {
     setMessage("");
     setChatError("");
 
+    const payloadData = isGroup
+      ? { sender_id: me, group_id: targetId, receiver_id: null, text }
+      : { sender_id: me, receiver_id: targetId, group_id: null, text };
+
     const { data, error } = await supabase
       .from("chat_messages")
-      .insert([{ sender_id: me, receiver_id: otherId, text }])
+      .insert([payloadData])
       .select(MESSAGE_COLUMNS)
       .single();
 
@@ -214,7 +274,7 @@ function ChatRoomContent() {
       return;
     }
 
-    const row = data as MessageRow;
+    const row = data as unknown as MessageRow;
     setMessages((prev) =>
       prev.some((m) => m.id === String(row.id))
         ? prev
@@ -233,7 +293,7 @@ function ChatRoomContent() {
   if (!contact) {
     return (
       <main className={styles.screen}>
-        <p style={{ padding: "24px" }}>{chatError || "Kontak tidak ditemukan."}</p>
+        <p style={{ padding: "24px" }}>{chatError || "Kontak atau grup tidak ditemukan."}</p>
         <Link href="/chat" style={{ padding: "0 24px", color: "#0066cc" }}>
           Kembali ke daftar chat
         </Link>
@@ -289,6 +349,12 @@ function ChatRoomContent() {
                   item.sender === "me" ? styles.myBubble : styles.theirBubble
                 }`}
               >
+                {/* Tampilkan nama pengirim jika di dalam chat grup */}
+                {contact.isGroup && item.sender === "other" && (
+                  <span style={{ fontSize: "11px", fontWeight: "bold", color: "#0066cc", display: "block", marginBottom: "2px" }}>
+                    {item.senderName}
+                  </span>
+                )}
                 <p className={styles.messageText}>{item.text}</p>
                 <span className={styles.messageTime}>{item.time}</span>
               </div>

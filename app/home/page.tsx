@@ -6,6 +6,7 @@ import Navbar from "@/components/navbar/Navbar";
 import SearchExperience from "@/components/SearchExperience";
 import StorySection from "@/components/home/StorySection";
 import DiscussionSection from "@/components/home/DiscussionSection";
+import { supabase } from "@/app/lib/supabase";
 
 export default function HomePage() {
   const [groups, setGroups] = useState<string[]>([]);
@@ -37,16 +38,66 @@ export default function HomePage() {
     setShowSearch(true);
   }
 
-  function createGroup(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+async function createGroup(e: FormEvent<HTMLFormElement>) {
+  e.preventDefault();
 
-    const name = groupName.trim();
-    if (!name) return;
+  const name = groupName.trim();
+  if (!name) return;
 
+  try {
+    // 1. Ambil user yang sedang login
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !user.email) {
+      alert("Silakan login terlebih dahulu.");
+      return;
+    }
+
+    // 2. Cari ID user di tabel `users` berdasarkan email
+    const emailPattern = user.email.replace(/[\\%_]/g, "\\$&");
+    const { data: me } = await supabase
+      .from("users")
+      .select("id")
+      .ilike("email", emailPattern)
+      .limit(1)
+      .maybeSingle();
+
+    if (!me) {
+      alert("Akun belum terdaftar di tabel users.");
+      return;
+    }
+
+    // 3. Masukkan data grup baru ke tabel `chat_groups`
+    const { data: newGroup, error: groupError } = await supabase
+      .from("chat_groups")
+      .insert([{ name: name, avatar_url: "/images/figma/ilham.png" }])
+      .select()
+      .single();
+
+    if (groupError || !newGroup) {
+      console.error("Gagal membuat grup:", groupError?.message);
+      alert("Gagal membuat grup. Coba lagi.");
+      return;
+    }
+
+    // 4. Masukkan pembuat grup sebagai anggota di tabel `chat_group_members`
+    const { error: memberError } = await supabase
+      .from("chat_group_members")
+      .insert([{ group_id: newGroup.id, user_id: me.id }]);
+
+    if (memberError) {
+      console.error("Gagal menambahkan anggota grup:", memberError.message);
+    }
+
+    // 5. Perbarui state lokal, reset form, dan tutup modal
     setGroups((previous) => [...previous, name]);
     setGroupName("");
     setShowGroupForm(false);
+
+    alert("Grup berhasil dibuat! Grup sekarang tersedia di halaman Chat.");
+  } catch (err) {
+    console.error("Terjadi kesalahan:", err);
   }
+}
 
   return (
     <main className="app-shell">

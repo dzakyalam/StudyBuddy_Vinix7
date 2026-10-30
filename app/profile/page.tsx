@@ -276,7 +276,7 @@ export default function ProfilePage() {
           <p className={styles.userMeta}>
             {email}
             <span className={styles.metaDivider}> | </span>
-            Aktif di Supabase
+            Aktif di StudyBuddy sejak 2026
           </p>
         </div>
 

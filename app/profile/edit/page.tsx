@@ -1,6 +1,13 @@
+
 "use client";
 
-import { useRef, useState, useEffect, type ChangeEvent, type FormEvent } from "react";
+import {
+  useRef,
+  useState,
+  useEffect,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabase";
@@ -10,7 +17,9 @@ export default function EditProfilPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Data profil
   const [foto, setFoto] = useState("/images/figma/aditya.png");
+  const [fileFoto, setFileFoto] = useState<File | null>(null);
   const [nama, setNama] = useState("");
   const [email, setEmail] = useState("");
   const [telepon, setTelepon] = useState("");
@@ -19,47 +28,74 @@ export default function EditProfilPage() {
   const [fakultas, setFakultas] = useState("");
   const [prodi, setProdi] = useState("");
   const [ipk, setIpk] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
 
-  // Ambil data profil dari Supabase saat halaman dimuat
+  // 1. Mengambil data profil dari Supabase
   useEffect(() => {
+    let mounted = true;
+
     async function fetchUserData() {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
 
-      if (error || !user) {
-        router.replace("/login");
-        return;
-      }
-
-      setEmail(user.email || "");
-
-      // Ambil detail profil dari tabel profiles di Supabase
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile) {
-        setNama(profile.full_name || profile.name || "");
-        setTelepon(profile.phone || profile.telepon || "");
-        setGender(profile.gender || "Laki-laki");
-        setSemester(profile.semester ? String(profile.semester) : "1");
-        setFakultas(profile.faculty || profile.fakultas || "");
-        setProdi(profile.major || profile.prodi || "");
-        setIpk(profile.gpa ? String(profile.gpa) : profile.ipk ? String(profile.ipk) : "");
-        if (profile.avatar_url || profile.foto) {
-          setFoto(profile.avatar_url || profile.foto);
+        if (authError || !user) {
+          router.replace("/login");
+          return;
         }
-      }
 
-      setReady(true);
+        const { data: profile, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("firebase_uid", user.id)
+          .maybeSingle();
+
+        if (error) {
+          throw error;
+        }
+
+        if (!mounted) return;
+
+        setNama(profile?.name || "");
+        setEmail(profile?.email || user.email || "");
+        setTelepon(profile?.phone_number || "");
+        setGender(profile?.genre || "Laki-laki");
+        setSemester(
+          profile?.semester ? String(profile.semester) : "1"
+        );
+        setFakultas(profile?.faculty || "");
+        setProdi(profile?.major || "");
+        setIpk(
+          profile?.gpa !== null && profile?.gpa !== undefined
+            ? String(profile.gpa)
+            : ""
+        );
+
+        if (profile?.avatar_url) {
+          setFoto(profile.avatar_url);
+        }
+      } catch (error: any) {
+        console.error("Gagal mengambil profil:", error);
+        if (mounted) {
+          alert("Gagal mengambil data profil: " + error.message);
+        }
+      } finally {
+        if (mounted) setReady(true);
+      }
     }
 
     fetchUserData();
+
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
+  // 2. Memilih foto profil
   function handleFoto(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
 
@@ -77,22 +113,64 @@ export default function EditProfilPage() {
       return;
     }
 
-    setFoto(URL.createObjectURL(file));
+    // Membuat preview foto
+    const previewUrl = URL.createObjectURL(file);
+
+    setFoto(previewUrl);
+    setFileFoto(file);
   }
 
+  // 3. Mengunggah foto ke Supabase Storage
+  async function uploadFoto(userId: string, file: File) {
+    const extension =
+      file.name.split(".").pop()?.toLowerCase() || "jpg";
+
+    const filePath = `${userId}/${Date.now()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  }
+
+  // 4. Menyimpan seluruh data profil
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (!nama.trim() || !email.trim() || !telepon.trim() ||
-        !gender || !semester || !fakultas.trim() ||
-        !prodi.trim() || !ipk.trim()) {
+    if (
+      !nama.trim() ||
+      !email.trim() ||
+      !telepon.trim() ||
+      !gender ||
+      !semester ||
+      !fakultas.trim() ||
+      !prodi.trim() ||
+      !ipk.trim()
+    ) {
       alert("Mohon lengkapi semua data profil.");
       return;
     }
 
     const nilaiIpk = Number(ipk);
 
-    if (!Number.isFinite(nilaiIpk) || nilaiIpk < 0 || nilaiIpk > 4) {
+    if (
+      !Number.isFinite(nilaiIpk) ||
+      nilaiIpk < 0 ||
+      nilaiIpk > 4
+    ) {
       alert("IPK harus berada di antara 0 sampai 4.");
       return;
     }
@@ -100,48 +178,75 @@ export default function EditProfilPage() {
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-      if (!user) {
-        alert("Sesi telah habis, silakan login kembali.");
+      if (authError || !user) {
         router.replace("/login");
-        return;
+        throw new Error("Sesi telah habis. Silakan login kembali.");
       }
 
-      // Perbarui email login di Supabase Auth jika diubah
-      if (email.trim() !== user.email) {
-        const { error: emailError } = await supabase.auth.updateUser({ email: email.trim() });
+      // Memperbarui email Auth jika berubah
+      if (email.trim() !== (user.email || "")) {
+        const { error: emailError } =
+          await supabase.auth.updateUser({
+            email: email.trim(),
+          });
+
         if (emailError) {
-          alert("Gagal memperbarui email: " + emailError.message);
-          setLoading(false);
-          return;
+          throw new Error(
+            "Gagal memperbarui email: " + emailError.message
+          );
         }
       }
 
-      // Simpan/perbarui data profil ke tabel 'profiles' di database
+      // Mempertahankan foto lama jika tidak memilih foto baru
+      let avatarUrl = foto.startsWith("blob:") ? null : foto;
+
+      // Upload foto baru jika pengguna memilih foto
+      if (fileFoto) {
+        avatarUrl = await uploadFoto(user.id, fileFoto);
+      }
+
+      // Menyimpan ke tabel users
       const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert({
-          id: user.id,
-          full_name: nama.trim(),
-          phone: telepon.trim(),
-          gender: gender,
-          semester: Number(semester),
-          faculty: fakultas.trim(),
-          major: prodi.trim(),
-          gpa: nilaiIpk,
-          updated_at: new Date().toISOString(),
-        });
+        .from("users")
+        .upsert(
+          {
+            firebase_uid: user.id,
+            name: nama.trim(),
+            email: email.trim(),
+            phone_number: telepon.trim(),
+            genre: gender,
+            semester: semester,
+            faculty: fakultas.trim(),
+            major: prodi.trim(),
+            gpa: nilaiIpk,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "firebase_uid",
+          }
+        );
 
       if (profileError) {
         throw profileError;
       }
 
-      alert("Data profil berhasil diperbarui dan disinkronkan ke database!");
+      alert("Profil berhasil diperbarui!");
+
+      // Kembali ke halaman profil
       router.back();
-    } catch (err: any) {
-      console.error("Gagal menyimpan profil:", err);
-      alert("Terjadi kesalahan saat menyimpan profil: " + (err.message || err));
+    } catch (error: any) {
+      console.error("Detail error penyimpanan:", error);
+
+      alert(
+        "Gagal menyimpan: " +
+          (error?.message || "Terjadi kesalahan.")
+      );
     } finally {
       setLoading(false);
     }
@@ -153,7 +258,6 @@ export default function EditProfilPage() {
 
   return (
     <main className={styles.page}>
-      {/* Header */}
       <header className={styles.header}>
         <button
           type="button"
@@ -179,12 +283,11 @@ export default function EditProfilPage() {
         </button>
 
         <h1>Profil Kamu</h1>
-
         <div className={styles.headerSpace} />
       </header>
 
       <form className={styles.form} onSubmit={handleSubmit}>
-        {/* Foto Profil */}
+        {/* FOTO PROFIL */}
         <section className={styles.photoSection}>
           <button
             type="button"
@@ -198,7 +301,7 @@ export default function EditProfilPage() {
               width={100}
               height={100}
               className={styles.photo}
-              unoptimized={foto.startsWith("blob:")}
+              unoptimized
             />
           </button>
 
@@ -219,7 +322,7 @@ export default function EditProfilPage() {
           </button>
         </section>
 
-        {/* Form Informasi Profil */}
+        {/* DATA PROFIL */}
         <section className={styles.fields}>
           <label className={styles.field}>
             <span>Nama</span>
@@ -275,7 +378,10 @@ export default function EditProfilPage() {
                 required
               >
                 {Array.from({ length: 12 }, (_, index) => (
-                  <option key={index + 1} value={String(index + 1)}>
+                  <option
+                    key={index + 1}
+                    value={String(index + 1)}
+                  >
                     {index + 1}
                   </option>
                 ))}
@@ -319,8 +425,12 @@ export default function EditProfilPage() {
           </div>
         </section>
 
-        {/* Tombol Konfirmasi */}
-        <button type="submit" className={styles.nextButton} disabled={loading}>
+        {/* TOMBOL SIMPAN */}
+        <button
+          type="submit"
+          className={styles.nextButton}
+          disabled={loading}
+        >
           {loading ? "Menyimpan..." : "Konfirmasi"}
         </button>
       </form>

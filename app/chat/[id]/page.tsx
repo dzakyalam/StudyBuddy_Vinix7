@@ -10,7 +10,7 @@ type Message = {
   id: string;
   text: string;
   sender: "me" | "other";
-  senderName?: string; // Nama pengirim untuk ditampilkan di grup
+  senderName?: string; // Nama pengirim asli di dalam grup
   time: string;
 };
 
@@ -19,16 +19,6 @@ type ContactInfo = {
   status: string;
   avatar: string;
   isGroup: boolean;
-};
-
-type MessageRow = {
-  id: number;
-  sender_id: number;
-  receiver_id: number | null;
-  group_id: number | null;
-  text: string;
-  created_at: string;
-  users?: { name: string } | null; // Join tabel users untuk nama pengirim di grup
 };
 
 const MESSAGE_COLUMNS = "id, sender_id, receiver_id, group_id, text, created_at";
@@ -58,24 +48,6 @@ function ChatRoomContent() {
   const [chatError, setChatError] = useState("");
 
   const contactReady = contact !== null;
-
-function toMessage(row: any, me: number): Message {
-    const isMe = row.sender_id === me;
-    
-    const senderObj = row.sender_id;
-    const senderName = 
-      typeof senderObj === "object" && senderObj !== null && "name" in senderObj
-        ? (senderObj as { name: string }).name 
-        : "Anggota";
-
-    return {
-      id: String(row.id),
-      text: row.text,
-      sender: isMe ? "me" : "other",
-      senderName,
-      time: formatTime(row.created_at),
-    };
-  }
 
   // 1. Inisialisasi Akun & Data Kontak / Grup
   useEffect(() => {
@@ -191,7 +163,39 @@ function toMessage(row: any, me: number): Message {
         console.error("Gagal memuat pesan:", error.message);
         setChatError("Gagal memuat pesan. Coba lagi nanti.");
       } else {
-        setMessages(((data ?? []) as unknown as MessageRow[]).map((row) => toMessage(row, me)));
+        const rawMessages = data ?? [];
+
+        // Kumpulkan ID unik pengirim untuk memetakan nama dari tabel users
+        const senderIds = Array.from(new Set(rawMessages.map((m: any) => m.sender_id)));
+        let userMap: Record<string, string> = {};
+
+        if (senderIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from("users")
+            .select("id, name")
+            .in("id", senderIds);
+
+          if (usersData) {
+            usersData.forEach((u: any) => {
+              userMap[String(u.id)] = u.name || "Anggota";
+            });
+          }
+        }
+
+        setMessages(
+          rawMessages.map((row: any) => {
+            const isMe = row.sender_id === me;
+            const senderName = isMe ? "Kamu" : (userMap[String(row.sender_id)] || "Anggota");
+
+            return {
+              id: String(row.id),
+              text: row.text,
+              sender: isMe ? "me" : "other",
+              senderName,
+              time: formatTime(row.created_at),
+            };
+          })
+        );
       }
       setLoaded(true);
     }
@@ -213,28 +217,36 @@ function toMessage(row: any, me: number): Message {
           filter: filterCondition,
         },
         async (payload) => {
-          const row = payload.new as MessageRow;
+          const row = payload.new as any;
           
-          // Jika chat personal, pastikan pengirimnya sesuai
           if (!isGroup && row.sender_id !== targetId) return;
-          // Jika chat grup, abaikan pesan yang dikirim oleh diri sendiri (karena sudah ditangani saat handleSend)
           if (isGroup && row.sender_id === me) return;
 
-          // Ambil nama pengirim jika chat grup agar realtime-nya akurat
-          let senderData = row;
-          if (isGroup) {
-            const { data: userSender } = await supabase
-              .from("users")
-              .select("name")
-              .eq("id", row.sender_id)
-              .maybeSingle();
-            senderData = { ...row, users: userSender };
+          // Ambil nama asli pengirim secara realtime
+          let senderName = "Anggota";
+          const { data: senderUser } = await supabase
+            .from("users")
+            .select("name")
+            .eq("id", row.sender_id)
+            .maybeSingle();
+
+          if (senderUser?.name) {
+            senderName = senderUser.name;
           }
 
           setMessages((prev) =>
-            prev.some((m) => m.id === String(senderData.id))
+            prev.some((m) => m.id === String(row.id))
               ? prev
-              : [...prev, toMessage(senderData, me)]
+              : [
+                  ...prev,
+                  {
+                    id: String(row.id),
+                    text: row.text,
+                    sender: row.sender_id === me ? "me" : "other",
+                    senderName,
+                    time: formatTime(row.created_at),
+                  },
+                ]
           );
         }
       )
@@ -274,11 +286,20 @@ function toMessage(row: any, me: number): Message {
       return;
     }
 
-    const row = data as unknown as MessageRow;
+    const row = data as any;
     setMessages((prev) =>
       prev.some((m) => m.id === String(row.id))
         ? prev
-        : [...prev, toMessage(row, me)]
+        : [
+            ...prev,
+            {
+              id: String(row.id),
+              text: row.text,
+              sender: "me",
+              senderName: "Kamu",
+              time: formatTime(row.created_at),
+            },
+          ]
     );
   }
 
@@ -349,7 +370,7 @@ function toMessage(row: any, me: number): Message {
                   item.sender === "me" ? styles.myBubble : styles.theirBubble
                 }`}
               >
-                {/* Tampilkan nama pengirim jika di dalam chat grup */}
+                {/* Tampilkan nama asli user masing-masing di dalam chat grup */}
                 {contact.isGroup && item.sender === "other" && (
                   <span style={{ fontSize: "11px", fontWeight: "bold", color: "#0066cc", display: "block", marginBottom: "2px" }}>
                     {item.senderName}

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -28,57 +29,102 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [userName, setUserName] = useState("Pengguna StudyBuddy");
+  const [avatarUrl, setAvatarUrl] = useState("/images/figma/aditya.png");
+
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [dialog, setDialog] = useState<DialogType>(null);
   const [message, setMessage] = useState("");
   const [ready, setReady] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Ambil data user aktif dari Supabase saat halaman dimuat
+  // 1. Mengambil data pengguna dan profil dari Supabase
   useEffect(() => {
+    let mounted = true;
+
     async function fetchUserData() {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
 
-      if (error || !user) {
-        // Jika belum login, alihkan ke halaman login
-        router.replace("/login");
-        return;
+        if (authError || !user) {
+          router.replace("/login");
+          return;
+        }
+
+        if (!mounted) return;
+
+        setEmail(user.email || "");
+        setNewEmail(user.email || "");
+
+        // Mengambil profil dari tabel users
+        const { data: profile, error: profileError } = await supabase
+          .from("users")
+          .select("name, email, avatar_url")
+          .eq("firebase_uid", user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        if (!mounted) return;
+
+        if (profile) {
+          setUserName(profile.name || "Pengguna StudyBuddy");
+
+          if (profile.avatar_url) {
+            setAvatarUrl(profile.avatar_url);
+          }
+
+          setEmail(profile.email || user.email || "");
+          setNewEmail(user.email || "");
+        }
+
+        // Pengaturan notifikasi lokal
+        const savedNotification = localStorage.getItem(
+          "studybuddy_notification"
+        );
+
+        if (savedNotification !== null) {
+          setNotificationEnabled(savedNotification === "true");
+        }
+      } catch (error: any) {
+        console.error("Gagal mengambil profil:", error);
+
+        if (mounted) {
+          setMessage(error.message || "Gagal mengambil profil.");
+        }
+      } finally {
+        if (mounted) setReady(true);
       }
-
-      setEmail(user.email || "");
-      setNewEmail(user.email || "");
-
-      // Menggunakan .maybeSingle() agar aman jika baris profil belum ada di database
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile && profile.full_name) {
-        setUserName(profile.full_name);
-      }
-
-      // Pengaturan notifikasi disimpan secara lokal
-      const savedNotification = localStorage.getItem("studybuddy_notification");
-      if (savedNotification !== null) {
-        setNotificationEnabled(savedNotification === "true");
-      }
-
-      setReady(true);
     }
 
     fetchUserData();
+
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
+  // 2. Pengaturan notifikasi
   function toggleNotification() {
     const nextStatus = !notificationEnabled;
+
     setNotificationEnabled(nextStatus);
-    localStorage.setItem("studybuddy_notification", String(nextStatus));
+
+    localStorage.setItem(
+      "studybuddy_notification",
+      String(nextStatus)
+    );
   }
 
-  // Fungsi Ubah Email via Supabase Auth
+  // 3. Mengubah email Supabase Auth
   async function saveEmail() {
     const cleanedEmail = newEmail.trim();
+
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailPattern.test(cleanedEmail)) {
@@ -86,32 +132,77 @@ export default function ProfilePage() {
       return;
     }
 
-    const { error } = await supabase.auth.updateUser({ email: cleanedEmail });
+    setSavingEmail(true);
 
-    if (error) {
-      setMessage(error.message);
-      return;
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        throw new Error("Sesi telah berakhir. Silakan login kembali.");
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        email: cleanedEmail,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Email baru mungkin masih menunggu verifikasi.
+      // Jangan menganggap email Auth langsung berubah.
+      setDialog(null);
+      setMessage("");
+
+      alert(
+        "Permintaan perubahan email berhasil dikirim. Silakan periksa email baru untuk verifikasi."
+      );
+    } catch (error: any) {
+      setMessage(error.message || "Gagal mengubah email.");
+    } finally {
+      setSavingEmail(false);
     }
-
-    setEmail(cleanedEmail);
-    setMessage("");
-    setDialog(null);
-    alert("Permintaan ubah email dikirim. Silakan cek email baru Anda untuk verifikasi.");
   }
 
-  // Fungsi Logout via Supabase Auth
+  // 4. Logout
   async function logout() {
-    await supabase.auth.signOut();
-    setDialog(null);
-    router.replace("/login");
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) throw error;
+
+      setDialog(null);
+      router.replace("/login");
+    } catch (error: any) {
+      alert("Gagal logout: " + error.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // Fungsi Hapus Akun dengan await untuk memastikan proses sign out selesai
+  // 5. Hapus sesi lokal (bukan menghapus akun permanen)
   async function deleteAccount() {
-    localStorage.removeItem("studybuddy_notification");
-    await supabase.auth.signOut();
-    setDialog(null);
-    router.replace("/login");
+    setLoading(true);
+
+    try {
+      localStorage.removeItem("studybuddy_notification");
+
+      const { error } = await supabase.auth.signOut();
+
+      if (error) throw error;
+
+      setDialog(null);
+      router.replace("/login");
+    } catch (error: any) {
+      alert("Gagal keluar dari akun: " + error.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!ready) {
@@ -154,11 +245,12 @@ export default function ProfilePage() {
           <div className={styles.avatarContainer}>
             <div className={styles.avatarCircle}>
               <Image
-                src="/images/figma/aditya.png"
+                src={avatarUrl}
                 alt="Foto profil"
                 width={120}
                 height={120}
                 className={styles.avatarImg}
+                unoptimized
                 priority
               />
             </div>
@@ -368,8 +460,9 @@ export default function ProfilePage() {
                 type="button"
                 className={styles.primaryButton}
                 onClick={saveEmail}
+                disabled={savingEmail}
               >
-                Simpan
+                {savingEmail ? "Menyimpan..." : "Simpan"}
               </button>
             </div>
           </section>
@@ -408,8 +501,9 @@ export default function ProfilePage() {
                 type="button"
                 className={styles.primaryButton}
                 onClick={logout}
+                disabled={loading}
               >
-                Ya, Logout
+                {loading ? "Memproses..." : "Ya, Logout"}
               </button>
             </div>
           </section>
@@ -429,10 +523,12 @@ export default function ProfilePage() {
             aria-labelledby="deleteDialogTitle"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 id="deleteDialogTitle">Hapus sesi lokal akun?</h2>
+            <h2 id="deleteDialogTitle">Keluar dan hapus preferensi lokal?</h2>
 
             <p className={styles.modalDescription}>
-              Tindakan ini akan keluar dari akun dan membersihkan preferensi lokal browser Anda.
+              Tindakan ini hanya menghapus preferensi notifikasi lokal
+              dan mengakhiri sesi login. Akun serta data profil di
+              database tidak dihapus.
             </p>
 
             <div className={styles.modalActions}>
@@ -448,8 +544,9 @@ export default function ProfilePage() {
                 type="button"
                 className={styles.deleteButton}
                 onClick={deleteAccount}
+                disabled={loading}
               >
-                Ya, Lanjutkan
+                {loading ? "Memproses..." : "Ya, Lanjutkan"}
               </button>
             </div>
           </section>

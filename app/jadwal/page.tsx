@@ -1,19 +1,20 @@
 "use client";
 
-import { useState, useMemo, useSyncExternalStore, Suspense } from "react";
+import { useState, useMemo, useEffect, useSyncExternalStore, Suspense } from "react";
 import Header from "@/app/components/room/Header";
 import BottomNav from "@/app/components/room/BottomNav";
 import AgendaSummaryCard from "@/app/components/jadwal/AgendaSummaryCard";
 import AgendaTabs, { type AgendaTab } from "@/app/components/jadwal/AgendaTabs";
 import AgendaCard from "@/app/components/jadwal/AgendaCard";
 import AgendaFormSheet from "@/app/components/jadwal/AgendaFormSheet";
+import { isHariIni, isBesok, type Agenda } from "@/app/lib/mock-data";
 import {
-  agendas as initialAgendas,
-  penggunaAktif,
-  isHariIni,
-  isBesok,
-  type Agenda,
-} from "@/app/lib/mock-data";
+  fetchAgendas,
+  createAgenda,
+  updateAgenda,
+  deleteAgenda,
+} from "@/app/lib/agenda-api";
+import { useCurrentUser } from "@/components/home/useCurrentUser";
 import "./jadwal.css";
 
 // Helper memformat tanggal hari ini dalam format kapital: "KAMIS, 4 OKT 2026"
@@ -36,10 +37,32 @@ function subscribeDate() {
 }
 
 function JadwalContent() {
-  const [daftarAgenda, setDaftarAgenda] = useState<Agenda[]>(initialAgendas);
+  const { dbUser } = useCurrentUser();
+  const [daftarAgenda, setDaftarAgenda] = useState<Agenda[]>([]);
+  const [loadingAgenda, setLoadingAgenda] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [activeTab, setActiveTab] = useState<AgendaTab>("Semua");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [agendaToEdit, setAgendaToEdit] = useState<Agenda | null>(null);
+
+  // Ambil agenda milik user dari Supabase saat halaman dibuka
+  useEffect(() => {
+    let cancelled = false;
+    fetchAgendas()
+      .then((data) => {
+        if (!cancelled) setDaftarAgenda(data);
+      })
+      .catch((err) => {
+        console.error("Gagal memuat agenda:", err);
+        if (!cancelled) setLoadError("Gagal memuat jadwal. Coba muat ulang halaman.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAgenda(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Gunakan useSyncExternalStore: mengembalikan nilai server yang stabil saat prerender, dan tanggal client setelah hidrasi
   const tanggalHariIni = useSyncExternalStore(
@@ -83,18 +106,32 @@ function JadwalContent() {
     setIsFormOpen(true);
   }
 
-  function handleSaveAgenda(agenda: Agenda) {
-    setDaftarAgenda((prev) => {
-      const exists = prev.some((item) => item.id === agenda.id);
+  async function handleSaveAgenda(agenda: Agenda) {
+    const exists = daftarAgenda.some((item) => item.id === agenda.id);
+    try {
       if (exists) {
-        return prev.map((item) => (item.id === agenda.id ? agenda : item));
+        const saved = await updateAgenda(agenda);
+        setDaftarAgenda((prev) =>
+          prev.map((item) => (item.id === saved.id ? saved : item))
+        );
+      } else {
+        const saved = await createAgenda(agenda);
+        setDaftarAgenda((prev) => [saved, ...prev]);
       }
-      return [agenda, ...prev];
-    });
+    } catch (err) {
+      console.error("Gagal menyimpan agenda:", err);
+      alert("Gagal menyimpan jadwal. Coba lagi.");
+    }
   }
 
-  function handleDeleteAgenda(id: string) {
-    setDaftarAgenda((prev) => prev.filter((item) => item.id !== id));
+  async function handleDeleteAgenda(id: string) {
+    try {
+      await deleteAgenda(id);
+      setDaftarAgenda((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      console.error("Gagal menghapus agenda:", err);
+      alert("Gagal menghapus jadwal. Coba lagi.");
+    }
   }
 
   return (
@@ -129,7 +166,7 @@ function JadwalContent() {
               }}
               className="text-xl sm:text-2xl md:text-3xl font-extrabold"
             >
-              Hallo {penggunaAktif.nama} 👋
+              Hallo{dbUser?.name ? ` ${dbUser.name}` : ""} 👋
             </h1>
           </div>
 
@@ -171,7 +208,15 @@ function JadwalContent() {
 
         {/* Daftar Kartu Agenda: 1 Kolom di Mobile/Tablet, 2 Kolom di Layar Lebar (lg >= 1024px) */}
         <section aria-label="Daftar Agenda Kegiatan" style={{ flex: 1 }}>
-          {agendaDitampilkan.length > 0 ? (
+          {loadingAgenda ? (
+            <p style={{ color: "#64748b", fontSize: "14px", fontWeight: 600 }}>
+              Memuat jadwal...
+            </p>
+          ) : loadError ? (
+            <p style={{ color: "#dc2626", fontSize: "14px", fontWeight: 600 }}>
+              {loadError}
+            </p>
+          ) : agendaDitampilkan.length > 0 ? (
             <div className="jadwal-grid grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
               {agendaDitampilkan.map((agenda) => (
                 <AgendaCard

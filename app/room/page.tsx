@@ -10,14 +10,16 @@ import ChatPanel from "@/app/components/room/ChatPanel";
 import JoinRoomSheet from "@/app/components/room/JoinRoomSheet";
 import LeaveConfirmDialog from "@/app/components/room/LeaveConfirmDialog";
 import { useRoomMedia } from "@/app/components/room/useRoomMedia";
-import { penggunaAktif, type Member } from "@/app/lib/mock-data";
 import {
-  getRoomParticipants,
-  addParticipantToRoom,
-  removeParticipantFromRoom,
-  setupRoomPresence,
-  useRoom,
-} from "@/app/lib/room-store";
+  useMe,
+  useRoomById,
+  useRoomParticipants,
+  useRoomMessages,
+  joinRoom,
+  heartbeatRoom,
+  leaveRoom,
+  roomErrorMessage,
+} from "@/app/lib/room-api";
 import "./room.css";
 
 function RoomContent() {
@@ -25,66 +27,44 @@ function RoomContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
-  // Cari room berdasarkan id atau kode dari store bersama secara reaktif
-  const room = useRoom(id);
+  // User yang sedang login + data room dari Supabase
+  const me = useMe();
+  const meId = me?.id ?? "";
+  const { room, loading: loadingRoom } = useRoomById(id);
+  const roomId = room?.id ?? null;
 
   // Status bergabung ke room (sebelum gabung, tampilkan sheet 'Siap bergabung?')
   const [sudahGabung, setSudahGabung] = useState(false);
   const [bukaChat, setBukaChat] = useState(false);
   const [bukaDialogKeluar, setBukaDialogKeluar] = useState(false);
 
-  // Sumber data peserta untuk room ini dari room-store
-  const [daftarPeserta, setDaftarPeserta] = useState<Member[]>(() => {
-    if (!room) return [];
-    return getRoomParticipants(room.id);
-  });
+  // Peserta & chat room (Realtime). Chat baru aktif setelah user berhasil join.
+  const { members: daftarPeserta, refresh: refreshPeserta } = useRoomParticipants(roomId);
+  const { messages, send: kirimPesan } = useRoomMessages(roomId, sudahGabung);
 
   // Hook manajemen media lokal
   const media = useRoomMedia();
 
-  // Sinkronisasi peserta room dari localStorage & presence
-  useEffect(() => {
-    if (!room) return;
-
-    function handleLocalUpdate(e: Event) {
-      const customEvent = e as CustomEvent<{
-        roomId: string;
-        participants: Member[];
-      }>;
-      if (customEvent.detail && customEvent.detail.roomId === room?.id) {
-        setDaftarPeserta(customEvent.detail.participants);
-      }
-    }
-
-    window.addEventListener("studybuddy_room_update", handleLocalUpdate);
-
-    return () => {
-      window.removeEventListener("studybuddy_room_update", handleLocalUpdate);
-    };
-  }, [room]);
-
-  // Alur Masuk (Gabung Room)
+  // Alur Masuk (Gabung Room). Mengembalikan pesan error, atau null jika berhasil.
   const handleJoinRoom = useCallback(
-    async (micState: boolean, camState: boolean) => {
-      if (!room) return;
+    async (
+      micState: boolean,
+      camState: boolean,
+      password: string
+    ): Promise<string | null> => {
+      if (!room || !me) return "Data room belum siap. Coba lagi.";
 
-      const myMember: Member = {
-        id: penggunaAktif.id,
-        nama: penggunaAktif.nama,
-        inisial: penggunaAktif.nama[0]?.toUpperCase() || "Z",
-        warnaAvatar: "#3688F5",
-        micOn: micState,
-        camOn: camState,
-        speaking: false,
-      };
+      try {
+        await joinRoom(room.id, password || null, me.nama);
+      } catch (err) {
+        return roomErrorMessage(err);
+      }
 
-      // Tambahkan saya ke peserta room di store & localStorage
-      const updatedList = addParticipantToRoom(room.id, myMember);
-      setDaftarPeserta(updatedList);
+      await refreshPeserta();
       setSudahGabung(true);
 
       // Toast: "<nama> bergabung"
-      media.showToast(`${penggunaAktif.nama} bergabung`);
+      media.showToast(`${me.nama} bergabung`);
 
       // Nyalakan mic/kamera jika dipilih aktif pada sheet pra-gabung
       if (micState) {
@@ -93,20 +73,18 @@ function RoomContent() {
       if (camState) {
         await media.toggleCam();
       }
+      return null;
     },
-    [room, media]
+    [room, me, media, refreshPeserta]
   );
 
-  // Alur Keluar (Leave Room)
+  // Alur Keluar (Leave Room). Penghapusan peserta dilakukan oleh cleanup effect heartbeat di bawah.
   const handleLeaveRoom = useCallback(() => {
     if (!room) return;
 
     // Hentikan media jika masih menyala
     if (media.isCamOn) media.toggleCam();
     if (media.isScreenSharing) media.toggleScreenShare();
-
-    // Hapus saya dari peserta di store
-    removeParticipantFromRoom(room.id, penggunaAktif.id);
 
     setBukaDialogKeluar(false);
     setSudahGabung(false);
@@ -115,47 +93,70 @@ function RoomContent() {
     router.push("/room-server");
   }, [room, media, router]);
 
-  // Tangani pagehide dan pembersihan saat keluar dari browser/tab
+  // Selama berada di room: heartbeat tiap 20 detik agar tetap tercatat aktif.
+  // Saat keluar / pindah halaman / tab ditutup: keluar dari room di server.
   useEffect(() => {
-    if (!room || !sudahGabung) return;
+    if (!roomId || !sudahGabung) return;
+
+    const timer = setInterval(() => {
+      heartbeatRoom(roomId)
+        .then((masihPeserta) => {
+          if (!masihPeserta) {
+            // Row peserta hilang = room sudah dihapus oleh host
+            alert("Room ini sudah dihapus oleh host.");
+            router.push("/room-server");
+          }
+        })
+        .catch(() => {});
+    }, 20000);
 
     const handlePageHide = () => {
-      removeParticipantFromRoom(room.id, penggunaAktif.id);
+      leaveRoom(roomId).catch(() => {});
     };
-
     window.addEventListener("pagehide", handlePageHide);
 
     return () => {
+      clearInterval(timer);
       window.removeEventListener("pagehide", handlePageHide);
+      leaveRoom(roomId).catch(() => {});
     };
-  }, [room, sudahGabung]);
+  }, [roomId, sudahGabung, router]);
 
-  // Presence antar-tab dengan BroadcastChannel ("studybuddy-room-<id>")
-  useEffect(() => {
-    if (!room || !sudahGabung) return;
-
-    const myMember: Member = {
-      id: penggunaAktif.id,
-      nama: penggunaAktif.nama,
-      inisial: penggunaAktif.nama[0]?.toUpperCase() || "Z",
-      warnaAvatar: "#3688F5",
-      micOn: media.isMicOn,
-      camOn: media.isCamOn,
-      speaking: media.isSpeaking,
-    };
-
-    const cleanupPresence = setupRoomPresence(
-      room.id,
-      myMember,
-      (updatedList) => {
-        setDaftarPeserta(updatedList);
+  // Kirim pesan chat
+  const handleKirimPesan = useCallback(
+    async (isi: string) => {
+      if (!me) return;
+      try {
+        await kirimPesan(isi, me.nama);
+      } catch (err) {
+        console.error("Gagal mengirim pesan:", err);
+        media.showToast("Pesan gagal terkirim. Coba lagi.");
       }
-    );
+    },
+    [me, kirimPesan, media]
+  );
 
-    return () => {
-      cleanupPresence();
-    };
-  }, [room, sudahGabung, media.isMicOn, media.isCamOn, media.isSpeaking]);
+  // Menunggu data room & identitas user
+  if (loadingRoom || (room && !me)) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          backgroundColor: "#ffffff",
+          maxWidth: "430px",
+          margin: "0 auto",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#64748b",
+          fontSize: "14px",
+          fontWeight: 600,
+        }}
+      >
+        Memuat room...
+      </div>
+    );
+  }
 
   // Jika room tidak ditemukan, tampilkan pesan error + tombol kembali
   if (!room) {
@@ -251,7 +252,7 @@ function RoomContent() {
   }
 
   // Presenter layar
-  const presenter = daftarPeserta[0]?.nama || "Max Zul";
+  const presenter = daftarPeserta[0]?.nama || me?.nama || "";
   const roomNama = room.nama || (room as unknown as { title?: string })?.title || "Room Belajar";
   const roomKode = room.kode || (room as unknown as { code?: string })?.code || "0000";
 
@@ -455,7 +456,7 @@ function RoomContent() {
             className="room-desktop-strip"
           >
             {daftarPeserta.map((peserta) => {
-              const isLocalUser = peserta.id === penggunaAktif.id;
+              const isLocalUser = peserta.id === meId;
 
               return (
                 <ParticipantTile
@@ -496,7 +497,7 @@ function RoomContent() {
             {/* Grid 2 Kolom (Mobile) atau 3 Kolom (Tablet) */}
             <div className="room-participants-grid">
               {daftarPeserta.map((peserta) => {
-                const isLocalUser = peserta.id === penggunaAktif.id;
+                const isLocalUser = peserta.id === meId;
 
                 return (
                   <ParticipantTile
@@ -541,6 +542,9 @@ function RoomContent() {
             isOpen={true}
             onClose={() => {}}
             embedded={true}
+            messages={messages}
+            meId={meId}
+            onSend={handleKirimPesan}
           />
         </aside>
 
@@ -568,10 +572,12 @@ function RoomContent() {
         isOpen={!sudahGabung}
         room={room}
         currentParticipants={daftarPeserta}
+        meId={meId}
+        meNama={me?.nama ?? ""}
         onJoin={handleJoinRoom}
         onCancel={() => {
           if (room) {
-            removeParticipantFromRoom(room.id, penggunaAktif.id);
+            leaveRoom(room.id).catch(() => {});
           }
           router.push("/room-server");
         }}
@@ -589,6 +595,9 @@ function RoomContent() {
         isOpen={bukaChat}
         onClose={() => setBukaChat(false)}
         embedded={false}
+        messages={messages}
+        meId={meId}
+        onSend={handleKirimPesan}
       />
     </div>
   );

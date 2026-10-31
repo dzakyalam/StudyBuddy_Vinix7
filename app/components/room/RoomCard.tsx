@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { Room } from "@/app/lib/mock-data";
-import { useRoomParticipantCount } from "@/app/lib/room-store";
 
 export interface RoomCardProps {
   room: Room;
+  isHost?: boolean; // true jika user yang login adalah pembuat room
+  onDelete?: (room: Room) => void;
 }
 
-export default function RoomCard({ room }: RoomCardProps) {
+export default function RoomCard({ room, isHost = false, onDelete }: RoomCardProps) {
   // Parsing defensif untuk mencegah runtime error jika ada data tersimpan yang tidak lengkap
   const roomId = room?.id || "";
   const roomNama =
@@ -27,8 +28,8 @@ export default function RoomCard({ room }: RoomCardProps) {
       ? (room as unknown as { maxParticipants: number }).maxParticipants
       : 50;
 
-  // Gunakan hook reaktif terpusat yang aman hydration dan bebas cascading renders
-  const jumlahPeserta = useRoomParticipantCount(roomId, roomPeserta);
+  // Jumlah peserta aktif datang langsung dari database (lewat daftar room)
+  const jumlahPeserta = roomPeserta;
 
   const isPenuh = jumlahPeserta >= roomKapasitas;
 
@@ -175,6 +176,43 @@ export default function RoomCard({ room }: RoomCardProps) {
             fontWeight: 600,
           }}
         >
+          {isHost && onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(room)}
+              aria-label={`Hapus room ${roomNama}`}
+              title="Hapus room"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "4px",
+                marginRight: "6px",
+                background: "transparent",
+                border: "none",
+                borderRadius: "8px",
+                color: "#ef4444",
+                cursor: "pointer",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          )}
           <svg
             width="14"
             height="14"

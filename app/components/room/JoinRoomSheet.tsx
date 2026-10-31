@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
-import { penggunaAktif, type Room, type Member } from "@/app/lib/mock-data";
+import type { Room, Member } from "@/app/lib/mock-data";
 
 export interface JoinRoomSheetProps {
   isOpen: boolean;
   room: Room;
   currentParticipants: Member[];
-  onJoin: (micState: boolean, camState: boolean) => void;
+  meId: string;
+  meNama: string;
+  // Mengembalikan pesan error (string) jika gagal bergabung, atau null jika berhasil
+  onJoin: (micState: boolean, camState: boolean, password: string) => Promise<string | null>;
   onCancel: () => void;
 }
 
@@ -15,9 +18,12 @@ export default function JoinRoomSheet({
   isOpen,
   room,
   currentParticipants,
+  meId,
+  meNama,
   onJoin,
   onCancel,
 }: JoinRoomSheetProps) {
+  const [submitting, setSubmitting] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [camOn, setCamOn] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -29,7 +35,7 @@ export default function JoinRoomSheet({
 
   // Cek apakah room sudah penuh dan saya belum terdaftar sebagai anggota
   const sudahAnggota = currentParticipants.some(
-    (m) => m.id === penggunaAktif.id
+    (m) => m.id === meId
   );
   const isPenuh = currentParticipants.length >= room.kapasitas && !sudahAnggota;
 
@@ -109,7 +115,7 @@ export default function JoinRoomSheet({
     }
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
 
@@ -118,21 +124,23 @@ export default function JoinRoomSheet({
       return;
     }
 
-    // Validasi password jika room dilindungi password
-    if (room.password) {
-      if (!passwordInput.trim()) {
-        setError("Password room wajib diisi.");
-        return;
-      }
-      if (passwordInput.trim() !== room.password) {
-        setError("Password room salah. Silakan coba lagi.");
-        return;
-      }
+    // Password diperiksa di server; di sini hanya pastikan tidak kosong
+    if (room.hasPassword && !passwordInput.trim()) {
+      setError("Password room wajib diisi.");
+      return;
     }
 
     // Hentikan stream preview agar useRoomMedia dapat mengelolanya dari nol
     stopPreviewCamera();
-    onJoin(micOn, camOn);
+    setSubmitting(true);
+    const pesanError = await onJoin(micOn, camOn, passwordInput.trim());
+    setSubmitting(false);
+
+    if (pesanError) {
+      // Preview kamera sudah dihentikan, jadi kembalikan toggle ke posisi mati
+      setCamOn(false);
+      setError(pesanError);
+    }
   }
 
   return (
@@ -263,7 +271,7 @@ export default function JoinRoomSheet({
                 fontWeight: 800,
               }}
             >
-              {penggunaAktif.nama[0]?.toUpperCase() || "Z"}
+              {meNama[0]?.toUpperCase() || "?"}
             </div>
           )}
 
@@ -288,7 +296,7 @@ export default function JoinRoomSheet({
                 display: "block",
               }}
             >
-              {penggunaAktif.nama}
+              {meNama}
             </strong>
           </div>
 
@@ -405,7 +413,7 @@ export default function JoinRoomSheet({
           </div>
 
           {/* Input Password jika room dilindungi password */}
-          {room.password && (
+          {room.hasPassword && (
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <label
                 htmlFor="input-join-password"
@@ -465,7 +473,7 @@ export default function JoinRoomSheet({
           {/* Tombol Pill Biru "Gabung" */}
           <button
             type="submit"
-            disabled={isPenuh}
+            disabled={isPenuh || submitting}
             style={{
               width: "100%",
               minHeight: "46px",

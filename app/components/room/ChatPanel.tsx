@@ -1,24 +1,25 @@
 "use client";
 
 import { useState, useEffect, useRef, type FormEvent } from "react";
-import {
-  messages as initialMessages,
-  penggunaAktif,
-  type Message,
-} from "@/app/lib/mock-data";
+import type { Message } from "@/app/lib/mock-data";
 
 export interface ChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
   embedded?: boolean;
+  messages: Message[];
+  meId: string;
+  onSend: (isi: string) => void | Promise<void>;
 }
 
 export default function ChatPanel({
   isOpen,
   onClose,
   embedded = false,
+  messages: daftarPesan,
+  meId,
+  onSend,
 }: ChatPanelProps) {
-  const [daftarPesan, setDaftarPesan] = useState<Message[]>(initialMessages);
   const [inputPesan, setInputPesan] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -60,20 +61,8 @@ export default function ChatPanel({
     // Tolak pesan kosong
     if (!pesanBersih) return;
 
-    const sekarang = new Date();
-    const jam = String(sekarang.getHours()).padStart(2, "0");
-    const menit = String(sekarang.getMinutes()).padStart(2, "0");
-    const waktuSekarang = `${jam}:${menit}`;
-
-    const pesanBaru: Message = {
-      id: `m-${Date.now()}`,
-      pengirimId: penggunaAktif.id,
-      nama: penggunaAktif.nama,
-      isi: pesanBersih,
-      waktu: waktuSekarang,
-    };
-
-    setDaftarPesan((prev) => [...prev, pesanBaru]);
+    // Pesan disimpan ke database oleh halaman room, lalu muncul lewat Realtime
+    void onSend(pesanBersih);
     setInputPesan("");
   }
 
@@ -193,7 +182,7 @@ export default function ChatPanel({
         }}
       >
         {daftarPesan.map((pesan) => {
-          const isSaya = pesan.pengirimId === penggunaAktif.id;
+          const isSaya = pesan.pengirimId === meId;
 
           return (
             <div

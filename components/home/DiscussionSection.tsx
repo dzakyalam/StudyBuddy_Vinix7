@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabase";
+import { fetchAgendas } from "@/app/lib/agenda-api";
+import type { Agenda } from "@/app/lib/mock-data";
 import { useCurrentUser } from "./useCurrentUser";
 
 type DiscussionRow = {
@@ -19,6 +21,19 @@ type DiscussionRow = {
 };
 
 type Host = { name: string; avatar: string | null };
+
+// Gabungan diskusi publik + agenda pribadi (dari halaman Jadwal), diurutkan per waktu mulai
+type FeedItem =
+  | { kind: "discussion"; start: number; data: DiscussionRow }
+  | { kind: "agenda"; start: number; data: Agenda };
+
+function agendaStart(a: Agenda) {
+  return new Date(`${a.tanggal}T${a.jamMulai}:00`);
+}
+
+function agendaEnd(a: Agenda) {
+  return new Date(`${a.tanggal}T${a.jamSelesai}:00`);
+}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("id-ID", {
@@ -53,6 +68,7 @@ export default function DiscussionSection() {
   const [counts, setCounts] = useState<Map<number, number>>(new Map());
   const [joined, setJoined] = useState<Set<number>>(new Set());
   const [pending, setPending] = useState<Set<number>>(new Set());
+  const [agendas, setAgendas] = useState<Agenda[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -115,6 +131,45 @@ export default function DiscussionSection() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Ambil agenda milik user dari Jadwal, hanya yang belum selesai
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchAgendas()
+      .then((list) => {
+        if (cancelled) return;
+        const now = Date.now();
+        setAgendas(list.filter((a) => agendaEnd(a).getTime() >= now));
+      })
+      .catch((err) => {
+        console.warn("Gagal memuat jadwal:", err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const feed = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = [
+      ...discussions.map(
+        (d): FeedItem => ({
+          kind: "discussion",
+          start: new Date(d.starts_at).getTime(),
+          data: d,
+        })
+      ),
+      ...agendas.map(
+        (a): FeedItem => ({
+          kind: "agenda",
+          start: agendaStart(a).getTime(),
+          data: a,
+        })
+      ),
+    ];
+    return items.sort((x, y) => x.start - y.start);
+  }, [discussions, agendas]);
 
   // Tandai diskusi yang sudah di-join oleh user yang sedang login
   useEffect(() => {
@@ -246,13 +301,50 @@ export default function DiscussionSection() {
 
       {loading ? (
         <div className="empty-state">Memuat diskusi...</div>
-      ) : discussions.length === 0 ? (
+      ) : feed.length === 0 ? (
         <div className="empty-state">
           Belum ada diskusi yang akan datang.
         </div>
       ) : (
         <div className="discussion-list">
-          {discussions.map((item) => {
+          {feed.map((entry) => {
+            if (entry.kind === "agenda") {
+              const a = entry.data;
+              return (
+                <article className="discussion-card" key={`agenda-${a.id}`}>
+                  <div className="discussion-tags">
+                    <span className="tag tag-blue">
+                      ◷ {formatDate(`${a.tanggal}T${a.jamMulai}:00`)}
+                    </span>
+                    <span className="tag">{a.kategori}</span>
+                  </div>
+
+                  <h3>{a.judul}</h3>
+                  {a.catatan && (
+                    <p className="discussion-description">{a.catatan}</p>
+                  )}
+
+                  <div className="discussion-author">
+                    <div className="author-avatar">🗓️</div>
+                    <div className="author-info">
+                      <strong>Jadwal kamu</strong>
+                      {a.kodeRoom && <span>Code Room : {a.kodeRoom}</span>}
+                    </div>
+                    <Link href="/jadwal" className="btn btn-primary join-button">
+                      Lihat
+                    </Link>
+                  </div>
+
+                  <div className="discussion-meta">
+                    <span>
+                      ◷ {a.jamMulai} - {a.jamSelesai}
+                    </span>
+                  </div>
+                </article>
+              );
+            }
+
+            const item = entry.data;
             const isJoined = joined.has(item.id);
             const host = item.host_id !== null ? hosts.get(item.host_id) : undefined;
             const hostName = item.host_name || host?.name || "Host StudyBuddy";

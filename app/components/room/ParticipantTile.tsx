@@ -9,6 +9,10 @@ export interface ParticipantTileProps {
   localCameraStream?: MediaStream | null;
   isLocalSpeaking?: boolean;
   isLocalMicOn?: boolean;
+  /** Data peserta lain (dari LiveKit) */
+  remoteCameraStream?: MediaStream | null;
+  remoteSpeaking?: boolean;
+  remoteMicOn?: boolean;
   compact?: boolean;
 }
 
@@ -18,27 +22,40 @@ export default function ParticipantTile({
   localCameraStream = null,
   isLocalSpeaking,
   isLocalMicOn,
+  remoteCameraStream = null,
+  remoteSpeaking,
+  remoteMicOn,
   compact = false,
 }: ParticipantTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const hasVideo = isLocalUser && Boolean(localCameraStream);
+  // Stream kamera yang ditampilkan: lokal untuk diri sendiri, remote untuk peserta lain
+  const cameraStream = isLocalUser ? localCameraStream : remoteCameraStream;
+  const hasVideo = Boolean(cameraStream);
 
-  // Sambungkan localCameraStream ke elemen video saat kamera aktif
+  // Sambungkan stream kamera ke elemen video saat kamera aktif
   useEffect(() => {
-    if (videoRef.current && localCameraStream) {
-      videoRef.current.srcObject = localCameraStream;
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
     }
-  }, [localCameraStream]);
+  }, [cameraStream, hasVideo]);
 
-  // Nilai status jika tile ini adalah pengguna aktif lokal
-  const isSpeaking =
-    isLocalUser && isLocalSpeaking !== undefined
+  // Status bicara & mic: lokal dari hook media, peserta lain dari LiveKit
+  const isSpeaking = isLocalUser
+    ? isLocalSpeaking !== undefined
       ? isLocalSpeaking
+      : member.speaking
+    : remoteSpeaking !== undefined
+      ? remoteSpeaking
       : member.speaking;
 
-  const isMicOn =
-    isLocalUser && isLocalMicOn !== undefined ? isLocalMicOn : member.micOn;
+  const isMicOn = isLocalUser
+    ? isLocalMicOn !== undefined
+      ? isLocalMicOn
+      : member.micOn
+    : remoteMicOn !== undefined
+      ? remoteMicOn
+      : member.micOn;
 
   const namaTampilan = `${member.nama} ${isLocalUser ? "(Anda)" : ""}`;
 
@@ -70,7 +87,7 @@ export default function ParticipantTile({
           autoPlay
           playsInline
           muted
-          aria-label="Video kamera Anda"
+          aria-label={isLocalUser ? "Video kamera Anda" : `Video kamera ${member.nama}`}
           style={{
             position: "absolute",
             top: 0,
@@ -78,7 +95,7 @@ export default function ParticipantTile({
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            transform: "scaleX(-1)", // Mirror selfie view
+            transform: isLocalUser ? "scaleX(-1)" : "none", // Mirror hanya untuk selfie view
             display: "block",
             zIndex: 1,
             borderRadius: "inherit",

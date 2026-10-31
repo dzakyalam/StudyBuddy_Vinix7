@@ -8,6 +8,7 @@ export interface UseRoomMediaReturn {
   isScreenSharing: boolean;
   isSpeaking: boolean;
   isScreenShareSupported: boolean;
+  micStream: MediaStream | null;
   cameraStream: MediaStream | null;
   screenStream: MediaStream | null;
   toastMessage: string | null;
@@ -31,6 +32,7 @@ export function useRoomMedia(): UseRoomMediaReturn {
       typeof navigator.mediaDevices.getDisplayMedia === "function"
     );
   });
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -135,6 +137,7 @@ export function useRoomMedia(): UseRoomMediaReturn {
           audio: true,
         });
         audioStreamRef.current = stream;
+        setMicStream(stream);
         setIsMicOn(true);
         setupAudioDetection(stream);
       } else {
@@ -313,6 +316,7 @@ export function useRoomMedia(): UseRoomMediaReturn {
     isScreenSharing,
     isSpeaking,
     isScreenShareSupported,
+    micStream,
     cameraStream,
     screenStream,
     toastMessage,

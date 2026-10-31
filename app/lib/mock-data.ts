@@ -9,6 +9,7 @@ export interface Room {
   peserta: number; // jumlah peserta saat ini
   kapasitas: number; // kapasitas maksimal (maksimal 50)
   password: string | null;
+  hasPassword?: boolean; // true jika room dilindungi password (dari server)
   status: "live";
   hostId: string;
 }

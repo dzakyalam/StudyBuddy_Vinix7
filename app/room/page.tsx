@@ -10,6 +10,7 @@ import ChatPanel from "@/app/components/room/ChatPanel";
 import JoinRoomSheet from "@/app/components/room/JoinRoomSheet";
 import LeaveConfirmDialog from "@/app/components/room/LeaveConfirmDialog";
 import { useRoomMedia } from "@/app/components/room/useRoomMedia";
+import { useLiveRoom } from "@/app/lib/useLiveRoom";
 import {
   useMe,
   useRoomById,
@@ -44,6 +45,18 @@ function RoomContent() {
 
   // Hook manajemen media lokal
   const media = useRoomMedia();
+
+  // Video/suara antar peserta lewat LiveKit (aktif setelah user join)
+  const live = useLiveRoom({
+    roomId,
+    me,
+    enabled: sudahGabung,
+    micStream: media.micStream,
+    cameraStream: media.cameraStream,
+    screenStream: media.screenStream,
+    isMicOn: media.isMicOn,
+    onError: media.showToast,
+  });
 
   // Alur Masuk (Gabung Room). Mengembalikan pesan error, atau null jika berhasil.
   const handleJoinRoom = useCallback(
@@ -252,7 +265,12 @@ function RoomContent() {
   }
 
   // Presenter layar
-  const presenter = daftarPeserta[0]?.nama || me?.nama || "";
+  // Panggung: tampilkan share screen sendiri, atau milik peserta lain jika ada
+  const remoteScreen = Object.values(live.remotes).find((r) => r.screenStream);
+  const stageStream = media.screenStream ?? remoteScreen?.screenStream ?? null;
+  const presenter = media.screenStream
+    ? me?.nama || ""
+    : remoteScreen?.nama || daftarPeserta[0]?.nama || me?.nama || "";
   const roomNama = room.nama || (room as unknown as { title?: string })?.title || "Room Belajar";
   const roomKode = room.kode || (room as unknown as { code?: string })?.code || "0000";
 
@@ -466,6 +484,9 @@ function RoomContent() {
                   localCameraStream={isLocalUser ? media.cameraStream : null}
                   isLocalSpeaking={isLocalUser ? media.isSpeaking : undefined}
                   isLocalMicOn={isLocalUser ? media.isMicOn : undefined}
+                  remoteCameraStream={live.remotes[peserta.id]?.cameraStream ?? null}
+                  remoteSpeaking={live.remotes[peserta.id]?.speaking}
+                  remoteMicOn={live.remotes[peserta.id]?.micOn}
                   compact={true}
                 />
               );
@@ -475,7 +496,7 @@ function RoomContent() {
           {/* Panggung 16:9 Rounded dengan Overlay */}
           <StageView
             presenterName={presenter}
-            screenStream={media.screenStream}
+            screenStream={stageStream}
           />
 
           {/* Di Mobile (<768px) & Tablet (768-1023px): Grid Peserta di Bawah Panggung */}
@@ -507,6 +528,9 @@ function RoomContent() {
                     localCameraStream={isLocalUser ? media.cameraStream : null}
                     isLocalSpeaking={isLocalUser ? media.isSpeaking : undefined}
                     isLocalMicOn={isLocalUser ? media.isMicOn : undefined}
+                    remoteCameraStream={live.remotes[peserta.id]?.cameraStream ?? null}
+                    remoteSpeaking={live.remotes[peserta.id]?.speaking}
+                    remoteMicOn={live.remotes[peserta.id]?.micOn}
                   />
                 );
               })}

@@ -1,6 +1,8 @@
 
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
+import AuthGuard from "@/components/auth/AuthGuard";
 
 export const metadata: Metadata = {
   title: "StudyBuddy",
@@ -14,7 +16,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}>
+          <AuthGuard>{children}</AuthGuard>
+        </Suspense>
+      </body>
     </html>
   );
 }

@@ -7,23 +7,52 @@ import BottomNav from "@/app/components/room/BottomNav";
 import RoomCard from "@/app/components/room/RoomCard";
 import CreateRoomSheet from "@/app/components/room/CreateRoomSheet";
 import { type Room } from "@/app/lib/mock-data";
-import { useRooms, useCategories, saveNewRoom, deleteCategory } from "@/app/lib/room-store";
+import { useCategories, deleteCategory } from "@/app/lib/room-store";
+import { useRoomList, useMe, createRoom, deleteRoom, roomErrorMessage } from "@/app/lib/room-api";
 import "./room-server.css";
 
 export default function RoomServerPage() {
   const router = useRouter();
-  const daftarRoom = useRooms();
+  const { rooms: daftarRoom, loading: loadingRoom, error: errorRoom, refresh: refreshRoom } = useRoomList();
+  const me = useMe();
   const daftarKategori = useCategories();
   const [kataKunci, setKataKunci] = useState<string>("");
   const [kategoriDipilih, setKategoriDipilih] = useState<string>("");
   const [bukaDropdown, setBukaDropdown] = useState<boolean>(false);
   const [bukaSheetBuatRoom, setBukaSheetBuatRoom] = useState<boolean>(false);
 
-  function handleCreateRoom(newRoom: Room) {
-    saveNewRoom(newRoom);
-    setBukaSheetBuatRoom(false);
-    // Langsung arahkan pengguna ke room baru yang dibuat
-    router.push(`/room?id=${newRoom.id}`);
+  async function handleDeleteRoom(room: Room) {
+    const pesan =
+      room.peserta > 0
+        ? `Hapus room "${room.nama}"? ${room.peserta} peserta yang sedang berada di dalam akan dikeluarkan.`
+        : `Hapus room "${room.nama}"? Tindakan ini tidak bisa dibatalkan.`;
+    if (!window.confirm(pesan)) return;
+
+    try {
+      await deleteRoom(room.id);
+      await refreshRoom();
+    } catch (err) {
+      console.error("Gagal menghapus room:", err);
+      alert(roomErrorMessage(err));
+    }
+  }
+
+  async function handleCreateRoom(draft: Room) {
+    try {
+      // Kode room dibuat server; password di-hash di server
+      const roomId = await createRoom({
+        nama: draft.nama,
+        kategori: draft.kategori,
+        kapasitas: draft.kapasitas,
+        password: draft.password,
+      });
+      setBukaSheetBuatRoom(false);
+      // Langsung arahkan pengguna ke room baru yang dibuat
+      router.push(`/room?id=${roomId}`);
+    } catch (err) {
+      console.error("Gagal membuat room:", err);
+      alert(roomErrorMessage(err));
+    }
   }
 
   // Filter daftar room berdasarkan pencarian (nama atau kode) dan kategori
@@ -377,7 +406,14 @@ export default function RoomServerPage() {
           className="room-server-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 mt-6"
         >
           {roomTerfilter.length > 0 ? (
-            roomTerfilter.map((room) => <RoomCard key={room.id} room={room} />)
+            roomTerfilter.map((room) => (
+              <RoomCard
+                key={room.id}
+                room={room}
+                isHost={Boolean(me && room.hostId && room.hostId === me.id)}
+                onDelete={handleDeleteRoom}
+              />
+            ))
           ) : (
             <div
               style={{
@@ -394,7 +430,7 @@ export default function RoomServerPage() {
                   margin: 0,
                 }}
               >
-                Room tidak ditemukan
+                {loadingRoom ? "Memuat room..." : errorRoom || "Room tidak ditemukan"}
               </p>
             </div>
           )}
